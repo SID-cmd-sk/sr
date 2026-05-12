@@ -1,0 +1,1 @@
+# SR Manager - core package

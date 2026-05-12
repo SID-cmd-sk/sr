@@ -1,0 +1,144 @@
+{
+  "users": [],
+  "roles": [
+    {
+      "id": "r1",
+      "name": "Admin",
+      "permissions": [
+        "all"
+      ]
+    },
+    {
+      "id": "r2",
+      "name": "Manager",
+      "permissions": [
+        "sr",
+        "routes",
+        "team",
+        "reports"
+      ]
+    },
+    {
+      "id": "r3",
+      "name": "Technical",
+      "permissions": [
+        "sr",
+        "update_sr",
+        "upload"
+      ]
+    },
+    {
+      "id": "r4",
+      "name": "User",
+      "permissions": [
+        "create_sr",
+        "view_sr"
+      ]
+    },
+    {
+      "id": "r5",
+      "name": "Viewer",
+      "permissions": [
+        "view_sr"
+      ]
+    }
+  ],
+  "sr_entries": [
+    {
+      "id": "FAA5EE7B",
+      "sr_number": "SR-1001",
+      "title": "fff",
+      "description": "ffff",
+      "priority": "High",
+      "status": "Open",
+      "pipeline_id": "8D47DB49",
+      "route_id": null,
+      "current_stage": 1,
+      "created_by": "MASTER",
+      "assigned_to": null,
+      "customer_name": "fff",
+      "customer_contact": "fff",
+      "created_at": "2026-05-12 14:33:08",
+      "updated_at": "2026-05-12 14:33:27",
+      "closed_at": null,
+      "comments": [],
+      "attachments": [],
+      "stage_history": [
+        {
+          "stage": 1,
+          "by": "MASTER",
+          "at": "2026-05-12 14:33:24"
+        }
+      ]
+    }
+  ],
+  "routes": [],
+  "pipelines": [
+    {
+      "id": "8D47DB49",
+      "name": "sks",
+      "stages": [
+        {
+          "name": "s1",
+          "description": "s1",
+          "handled_by": "Admin",
+          "needs_approval": true,
+          "send_mail": true,
+          "send_whatsapp": true,
+          "has_escalation": true,
+          "escalation_hours": 24
+        }
+      ],
+      "created_by": "MASTER",
+      "created_at": "2026-05-12 14:31:57",
+      "active": true
+    }
+  ],
+  "mail_templates": [
+    {
+      "id": "6FAD25F1",
+      "name": "s1",
+      "subject": "s1",
+      "body": "{sr_number}{title}{priority}{customer_name}{customer_contact}{current_stage}{company_name}{description}{created_at}{assigned_to}",
+      "created_by": "MASTER",
+      "created_at": "2026-05-12 14:32:21"
+    }
+  ],
+  "whatsapp_templates": [],
+  "activity_logs": [
+    {
+      "id": "FD6E9F1B",
+      "action": "LOGIN",
+      "description": "Master Admin logged in",
+      "user_id": "MASTER",
+      "at": "2026-05-12 14:31:12"
+    },
+    {
+      "id": "33F6FF97",
+      "action": "PIPELINE_CREATE",
+      "description": "Pipeline 'sks' created",
+      "user_id": "MASTER",
+      "at": "2026-05-12 14:31:57"
+    },
+    {
+      "id": "86237935",
+      "action": "SR_CREATE",
+      "description": "SR SR-1001 created: fff",
+      "user_id": "MASTER",
+      "at": "2026-05-12 14:33:08"
+    },
+    {
+      "id": "19511118",
+      "action": "SR_ASSIGN",
+      "description": "SR SR-1001 assigned",
+      "user_id": "MASTER",
+      "at": "2026-05-12 14:33:27"
+    }
+  ],
+  "settings": {
+    "company_name": "SR Manager Enterprise",
+    "year": 2026,
+    "sr_prefix": "SR",
+    "sr_counter": 1001
+  }
+}
