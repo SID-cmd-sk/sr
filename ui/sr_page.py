@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
     QTableWidget, QTableWidgetItem, QPushButton, QLineEdit,
     QDialog, QFormLayout, QTextEdit, QComboBox, QMessageBox,
-    QSplitter, QScrollArea, QHeaderView
+    QSplitter, QScrollArea, QHeaderView, QCheckBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QColor
@@ -53,8 +53,17 @@ class CreateSRDialog(QDialog):
             l.setObjectName("FormLabel")
             return l
 
+        self.activity_type = QComboBox()
+        self.activity_type.addItems(["SR Mandatory", "No SR Required"])
+        self.activity_type.currentTextChanged.connect(self._activity_type_changed)
+        form.addRow(lbl("ACTIVITY TYPE"), self.activity_type)
+
+        self.sr_number_input = QLineEdit()
+        self.sr_number_input.setPlaceholderText("Required only for SR Mandatory external activities")
+        form.addRow(lbl("SR NUMBER"), self.sr_number_input)
+
         self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("Short title for the SR")
+        self.title_input.setPlaceholderText("Short title for the SR/activity")
         form.addRow(lbl("TITLE"), self.title_input)
 
         self.customer_name = QLineEdit()
@@ -98,16 +107,34 @@ class CreateSRDialog(QDialog):
         cancel = QPushButton("CANCEL")
         cancel.clicked.connect(self.reject)
         btn_row.addWidget(cancel)
-        create = QPushButton("CREATE SR")
+        create = QPushButton("CREATE")
         create.setObjectName("PrimaryBtn")
         create.clicked.connect(self._create)
         btn_row.addWidget(create)
         layout.addLayout(btn_row)
 
+    def _activity_type_changed(self, value):
+        sr_required = value == "SR Mandatory"
+        self.sr_number_input.setEnabled(sr_required)
+        self.pipeline_combo.setEnabled(sr_required)
+        self.route_combo.setEnabled(sr_required)
+
     def _create(self):
         title = self.title_input.text().strip()
         if not title:
             QMessageBox.warning(self, "Error", "Title is required.")
+            return
+        if self.activity_type.currentText() == "No SR Required":
+            storage.create_activity(
+                title=title,
+                description=self.desc_input.toPlainText().strip(),
+                activity_type="No SR Required",
+                created_by=self.user["id"],
+            )
+            self.accept()
+            return
+        if self.sr_number_input.text().strip() and not self.sr_number_input.text().strip().upper().startswith(storage.get_settings().get("sr_prefix", "SR")):
+            QMessageBox.warning(self, "Error", "SR number must use the configured prefix.")
             return
         storage.create_sr(
             title=title,
@@ -118,6 +145,7 @@ class CreateSRDialog(QDialog):
             created_by=self.user["id"],
             customer_name=self.customer_name.text().strip(),
             customer_contact=self.customer_contact.text().strip(),
+            activity_type="SR Mandatory",
         )
         self.accept()
 
@@ -279,7 +307,7 @@ class SRDetailPanel(QWidget):
         self.priority_lbl.setText(f"[{sr.get('priority','Medium')}]")
         self.priority_lbl.setStyleSheet(f"color:{pc}; font-size:10px;")
 
-        meta = f"Created: {sr['created_at'][:16]}  |  Stage: {sr['current_stage']}"
+        meta = f"Type: {sr.get('activity_type', 'SR Mandatory')}  |  Created: {sr['created_at'][:16]}  |  Stage: {sr['current_stage']}"
         if sr.get("customer_name"):
             meta += f"\nCustomer: {sr['customer_name']}"
             if sr.get("customer_contact"):
@@ -404,8 +432,8 @@ class SRPage(QWidget):
 
         # SR Table
         self.table = QTableWidget()
-        self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["SR#", "TITLE", "CUSTOMER", "PRIORITY", "STATUS", "CREATED"])
+        self.table.setColumnCount(7)
+        self.table.setHorizontalHeaderLabels(["SR#", "TYPE", "TITLE", "CUSTOMER", "PRIORITY", "STATUS", "CREATED"])
         self.table.setColumnWidth(0, 85)
         self.table.setColumnWidth(1, 180)
         self.table.setColumnWidth(2, 110)
@@ -474,6 +502,7 @@ class SRPage(QWidget):
 
             items = [
                 (sr["sr_number"], "#00D4AA"),
+                (sr.get("activity_type", "SR Mandatory").replace(" Required", ""), "#D4A800" if sr.get("activity_type") == "No SR Required" else "#777"),
                 (sr["title"][:28], "#C0C0C0"),
                 (sr.get("customer_name", "")[:18], "#888"),
                 (sr.get("priority", "Medium"), pr_color),

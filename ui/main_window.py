@@ -36,7 +36,7 @@ NAV_PERMISSIONS = {
     "templates":  ["Admin", "Manager"],
     "whatsapp":   ["Admin", "Manager", "Technical"],
     "users":      ["Admin", "Manager"],
-    "settings":   ["Admin"],
+    "settings":   ["Admin", "Manager"],
 }
 
 NAV_ITEMS = [

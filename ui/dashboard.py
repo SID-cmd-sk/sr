@@ -85,6 +85,12 @@ class DashboardPage(QWidget):
             ("total_users",    "Total Users",    "#D4A800", 1, 1),
             ("active_users",   "Active Users",   "#00D4AA", 1, 2),
             ("total_routes",   "Routes",         "#5599FF", 1, 3),
+            ("active_workflows", "Active Workflows", "#00D4AA", 2, 0),
+            ("pending_approvals", "Pending Approvals", "#D4A800", 2, 1),
+            ("emails_sent_today", "Emails Today", "#5599FF", 2, 2),
+            ("whatsapp_sent_today", "WhatsApp Today", "#25D366", 2, 3),
+            ("failed_automations", "Failed Automation", "#E05555", 3, 0),
+            ("no_sr_activities", "No-SR Activities", "#C084FC", 3, 1),
         ]
         for key, label, color, row, col in defs:
             card = StatCard(0, label, color)

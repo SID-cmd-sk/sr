@@ -403,6 +403,13 @@ class WhatsAppPage(QWidget):
         toolbar = QHBoxLayout()
         toolbar.addWidget(QLabel("YOUR WHATSAPP GROUPS"))
         toolbar.addStretch()
+        cfg = storage.get_whatsapp_settings()
+        self.saved_group_lbl = QLabel(f"Target: {cfg.get('target_group_name') or 'Not selected'}")
+        self.saved_group_lbl.setStyleSheet("color:#25D366; font-size:10px;")
+        toolbar.addWidget(self.saved_group_lbl)
+        btn_save_target = QPushButton("★ SET TARGET GROUP")
+        btn_save_target.clicked.connect(self._save_target_group)
+        toolbar.addWidget(btn_save_target)
         btn_refresh = QPushButton("↻ REFRESH")
         btn_refresh.clicked.connect(lambda: self.wa.get_groups())
         toolbar.addWidget(btn_refresh)
@@ -681,6 +688,7 @@ class WhatsAppPage(QWidget):
         self.btn_send.setEnabled(True)
         self.btn_dispatch.setEnabled(True)
         self.wa.get_groups()
+        cfg = storage.get_whatsapp_settings(); cfg["last_connected_session"] = f"+{phone}" if phone else name; storage.update_whatsapp_settings(cfg)
         storage.log_activity("WA_READY", f"WhatsApp connected: +{phone}", self.user["id"])
 
     def _on_disconnected(self, reason: str):
@@ -720,6 +728,7 @@ class WhatsAppPage(QWidget):
         self.send_log.insert(0, entry)
         self._refresh_send_table()
         storage.log_activity("WA_SENT", f"WA message sent to {name}: {preview[:40]}", self.user["id"])
+        storage.log_communication("whatsapp", jid, "MANUAL", "", preview, True, "", self.user["id"])
 
     def _on_wa_error(self, msg: str, detail: str):
         self._append_log(f"ERROR: {msg} — {detail}")
@@ -917,3 +926,20 @@ class WhatsAppPage(QWidget):
     def closeEvent(self, event):
         self.wa.stop_bridge()
         event.accept()
+
+
+def _wa_save_target_group(self):
+    row = self.groups_table.currentRow()
+    if row < 0:
+        QMessageBox.information(self, "Select Group", "Select one group to use for automations and daily reports.")
+        return
+    name = self.groups_table.item(row, 0).text()
+    jid = self.groups_table.item(row, 1).text()
+    cfg = storage.get_whatsapp_settings()
+    cfg.update({"target_group_id": jid, "target_group_name": name})
+    storage.update_whatsapp_settings(cfg)
+    self.saved_group_lbl.setText(f"Target: {name}")
+    storage.log_activity("WA_TARGET_GROUP", f"Target WhatsApp group set to {name}", self.user["id"])
+    QMessageBox.information(self, "Saved", f"Automation target group saved:\n{name}")
+
+WhatsAppPage._save_target_group = _wa_save_target_group

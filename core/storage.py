@@ -66,17 +66,101 @@ MASTER_ADMIN = {
 }
 
 
+def _default_copy():
+    return json.loads(json.dumps(DEFAULT_DB))
+
+
+def _migrate_db(db):
+    changed = False
+    defaults = _default_copy()
+    for key, value in defaults.items():
+        if key not in db:
+            db[key] = value
+            changed = True
+    settings = db.setdefault("settings", {})
+    for key, value in defaults["settings"].items():
+        if key not in settings:
+            settings[key] = value
+            changed = True
+
+    # Workflow/automation additions are migrated in-place to preserve existing JSON data.
+    for key, value in {
+        "route_templates": [],
+        "report_templates": [],
+        "automation_logs": [],
+        "communication_logs": [],
+        "daily_reports": [],
+        "activities": [],
+    }.items():
+        if key not in db:
+            db[key] = value
+            changed = True
+
+    for key, value in {
+        "email": {
+            "sender_email": "", "password": "", "smtp_host": "smtp.gmail.com",
+            "smtp_port": 465, "use_ssl": True, "use_tls": False, "display_name": ""
+        },
+        "whatsapp": {
+            "target_group_id": "", "target_group_name": "", "last_connected_session": "", "auto_reconnect": True
+        },
+        "daily_report": {
+            "enabled": False, "time": "18:00", "template_id": "",
+            "include_total_sr": True, "include_pending_sr": True, "include_completed_sr": True,
+            "include_user_activity": True, "include_failed_tasks": True
+        },
+    }.items():
+        if key not in settings:
+            settings[key] = value
+            changed = True
+
+    for tmpl_key in ("mail_templates", "whatsapp_templates", "route_templates", "report_templates"):
+        for tmpl in db.get(tmpl_key, []):
+            if "enabled" not in tmpl:
+                tmpl["enabled"] = True
+                changed = True
+            if "category" not in tmpl:
+                tmpl["category"] = tmpl_key
+                changed = True
+
+    for route in db.get("routes", []):
+        if "connections" not in route:
+            route["connections"] = []
+            steps = route.get("steps", [])
+            for i in range(len(steps) - 1):
+                route["connections"].append({"from": steps[i].get("id", str(i)), "to": steps[i + 1].get("id", str(i + 1))})
+            changed = True
+        for i, step in enumerate(route.get("steps", [])):
+            if "id" not in step:
+                step["id"] = str(i)
+                changed = True
+            step.setdefault("x", 40 + i * 190)
+            step.setdefault("y", 60)
+            step.setdefault("email_template_id", step.get("mail_template_id", ""))
+            step.setdefault("whatsapp_template_id", step.get("wa_template_id", ""))
+            step.setdefault("auto_send", bool(step.get("triggers_mail") or step.get("triggers_whatsapp")))
+            step.setdefault("delay_minutes", 0)
+    return db, changed
+
+
 def load_db():
     if not DB_FILE.exists():
-        save_db(DEFAULT_DB)
-        return DEFAULT_DB
-    with open(DB_FILE, "r") as f:
-        return json.load(f)
+        db = _default_copy()
+        save_db(db)
+        return db
+    with open(DB_FILE, "r", encoding="utf-8") as f:
+        db = json.load(f)
+    db, changed = _migrate_db(db)
+    if changed:
+        save_db(db)
+    return db
 
 
 def save_db(db):
-    with open(DB_FILE, "w") as f:
+    tmp = DB_FILE.with_suffix(".tmp")
+    with open(tmp, "w", encoding="utf-8") as f:
         json.dump(db, f, indent=2)
+    os.replace(tmp, DB_FILE)
 
 
 def get_session():
@@ -177,7 +261,7 @@ def get_sr_by_user(user_id, role):
     return [s for s in db["sr_entries"] if s.get("created_by") == user_id or s.get("assigned_to") == user_id]
 
 
-def create_sr(title, description, priority, pipeline_id, route_id, created_by, customer_name="", customer_contact=""):
+def create_sr(title, description, priority, pipeline_id, route_id, created_by, customer_name="", customer_contact="", activity_type="SR Mandatory"):
     db = load_db()
     counter = db["settings"]["sr_counter"] + 1
     prefix = db["settings"]["sr_prefix"]
@@ -186,6 +270,7 @@ def create_sr(title, description, priority, pipeline_id, route_id, created_by, c
     sr = {
         "id": _uid(),
         "sr_number": f"{prefix}-{counter}",
+        "activity_type": activity_type,
         "title": title,
         "description": description,
         "priority": priority,
@@ -207,6 +292,11 @@ def create_sr(title, description, priority, pipeline_id, route_id, created_by, c
     db["sr_entries"].append(sr)
     save_db(db)
     log_activity("SR_CREATE", f"SR {sr['sr_number']} created: {title}", created_by)
+    try:
+        from core import automation
+        automation.trigger_current_step(sr["id"], created_by, event="create")
+    except Exception as exc:
+        log_automation("ERROR", f"Initial automation failed for {sr['sr_number']}: {exc}", created_by, sr["id"])
     return sr
 
 
@@ -253,6 +343,12 @@ def advance_sr_stage(sr_id, user_id):
             sr["stage_history"].append({"stage": sr["current_stage"], "by": user_id, "at": _now()})
             break
     save_db(db)
+    log_activity("ROUTE_ADVANCE", f"SR {sr_id} advanced", user_id)
+    try:
+        from core import automation
+        automation.trigger_current_step(sr_id, user_id, event="advance")
+    except Exception as exc:
+        log_automation("ERROR", f"Automation failed for SR {sr_id}: {exc}", user_id, sr_id)
 
 
 # ---------- ROUTES ----------
@@ -262,13 +358,14 @@ def get_routes():
     return db["routes"]
 
 
-def create_route(name, description, steps, created_by):
+def create_route(name, description, steps, created_by, connections=None):
     db = load_db()
     route = {
         "id": _uid(),
         "name": name,
         "description": description,
         "steps": steps,  # list of step dicts
+        "connections": connections or [],
         "created_by": created_by,
         "created_at": _now(),
         "active": True,
@@ -395,6 +492,12 @@ def get_dashboard_stats():
         "total_routes": len(db["routes"]),
         "total_pipelines": len(db["pipelines"]),
         "high_priority": len([s for s in srs if s.get("priority") == "High" and s["status"] != "Closed"]),
+        "active_workflows": len([s for s in srs if s.get("route_id") and s.get("status") != "Closed"]),
+        "pending_approvals": len([s for s in srs if s.get("status") == "Pending"]),
+        "emails_sent_today": _count_comm_today(db, "email", True),
+        "whatsapp_sent_today": _count_comm_today(db, "whatsapp", True),
+        "failed_automations": len([l for l in db.get("automation_logs", []) if l.get("status") == "ERROR"]),
+        "no_sr_activities": len([a for a in db.get("activities", []) if a.get("activity_type") == "No SR Required"]),
     }
 
 
@@ -408,3 +511,131 @@ def update_settings(**kwargs):
     for k, v in kwargs.items():
         db["settings"][k] = v
     save_db(db)
+
+
+# ---------- WORKFLOW / AUTOMATION STORAGE ----------
+
+def _count_comm_today(db, channel, success=True):
+    today = datetime.now().strftime("%Y-%m-%d")
+    return len([l for l in db.get("communication_logs", [])
+                if l.get("channel") == channel and l.get("success") is success and l.get("at", "").startswith(today)])
+
+
+def get_email_settings():
+    return load_db()["settings"].get("email", {})
+
+
+def update_email_settings(settings):
+    db = load_db()
+    db["settings"]["email"] = settings
+    save_db(db)
+
+
+def get_whatsapp_settings():
+    return load_db()["settings"].get("whatsapp", {})
+
+
+def update_whatsapp_settings(settings):
+    db = load_db()
+    db["settings"]["whatsapp"] = settings
+    save_db(db)
+
+
+def get_report_settings():
+    return load_db()["settings"].get("daily_report", {})
+
+
+def update_report_settings(settings):
+    db = load_db()
+    db["settings"]["daily_report"] = settings
+    save_db(db)
+
+
+def update_template(kind, template_id, **kwargs):
+    key = {"email": "mail_templates", "whatsapp": "whatsapp_templates", "route": "route_templates", "report": "report_templates"}[kind]
+    db = load_db()
+    for t in db[key]:
+        if t["id"] == template_id:
+            t.update(kwargs)
+            break
+    save_db(db)
+
+
+def duplicate_template(kind, template_id, user_id):
+    key = {"email": "mail_templates", "whatsapp": "whatsapp_templates", "route": "route_templates", "report": "report_templates"}[kind]
+    db = load_db()
+    src = next((t for t in db[key] if t["id"] == template_id), None)
+    if not src:
+        return None
+    dup = dict(src)
+    dup["id"] = _uid()
+    dup["name"] = f"{src.get('name', 'Template')} Copy"
+    dup["created_by"] = user_id
+    dup["created_at"] = _now()
+    db[key].append(dup)
+    save_db(db)
+    log_activity("TEMPLATE_DUP", f"Duplicated {kind} template", user_id)
+    return dup
+
+
+def create_report_template(name, body, created_by):
+    db = load_db()
+    t = {"id": _uid(), "name": name, "body": body, "enabled": True,
+         "category": "report_templates", "created_by": created_by, "created_at": _now()}
+    db["report_templates"].append(t)
+    save_db(db)
+    return t
+
+
+def get_report_templates():
+    return load_db().get("report_templates", [])
+
+
+def create_activity(title, description, activity_type, created_by, sr_number=""):
+    if activity_type == "SR Mandatory" and not sr_number.strip():
+        raise ValueError("SR number is required for SR Mandatory activities")
+    db = load_db()
+    activity = {"id": _uid(), "title": title, "description": description,
+                "activity_type": activity_type, "sr_number": sr_number.strip(),
+                "created_by": created_by, "status": "Open", "created_at": _now(), "updated_at": _now()}
+    db["activities"].append(activity)
+    save_db(db)
+    log_activity("ACTIVITY_CREATE", f"{activity_type}: {title}", created_by)
+    return activity
+
+
+def get_activities(user_id=None, role="User"):
+    acts = load_db().get("activities", [])
+    if role in ["Admin", "Manager"] or not user_id:
+        return acts
+    return [a for a in acts if a.get("created_by") == user_id]
+
+
+def log_communication(channel, target, template_id, subject, body, success, error, user_id, sr_id=None):
+    db = load_db()
+    db["communication_logs"].append({"id": _uid(), "channel": channel, "target": target,
+        "template_id": template_id, "subject": subject, "body": body, "success": bool(success),
+        "error": error, "user_id": user_id, "sr_id": sr_id, "at": _now()})
+    db["communication_logs"] = db["communication_logs"][-1000:]
+    save_db(db)
+
+
+def log_automation(status, description, user_id, sr_id=None, route_id=None, step_id=None):
+    db = load_db()
+    db["automation_logs"].append({"id": _uid(), "status": status, "description": description,
+        "user_id": user_id, "sr_id": sr_id, "route_id": route_id, "step_id": step_id, "at": _now()})
+    db["automation_logs"] = db["automation_logs"][-1000:]
+    save_db(db)
+
+
+def get_logs(kind="activity", limit=200):
+    db = load_db()
+    key = {"activity": "activity_logs", "communication": "communication_logs", "automation": "automation_logs"}.get(kind, "activity_logs")
+    return db.get(key, [])[-limit:][::-1]
+
+
+def find_template(kind, template_id):
+    key = {"email": "mail_templates", "whatsapp": "whatsapp_templates", "report": "report_templates"}.get(kind)
+    if not key or not template_id:
+        return None
+    return next((t for t in load_db().get(key, []) if t.get("id") == template_id and t.get("enabled", True)), None)
