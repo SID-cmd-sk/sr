@@ -1,1 +1,12 @@
+# SR Manager Enterprise - Phase 2 Requirements
+# Install with: pip install -r requirements.txt
+
 PyQt6>=6.4.0
+qrcode>=7.4.2
+Pillow>=10.0.0
+
+# Phase 2 - WhatsApp bridge (Node.js side - auto-installed by app)
+# Node.js >= 18 required: https://nodejs.org
+# The app will install these automatically on first WhatsApp connect:
+#   @whiskeysockets/baileys
+#   pino

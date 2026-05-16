@@ -17,13 +17,14 @@ _ROOT = _Path(__file__).resolve().parent.parent
 if str(_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_ROOT))
 from core import storage
-from ui.dashboard    import DashboardPage
-from ui.sr_page      import SRPage
-from ui.routes_page  import RoutePage
+from ui.dashboard      import DashboardPage
+from ui.sr_page        import SRPage
+from ui.routes_page    import RoutePage
 from ui.pipelines_page import PipelinePage
-from ui.users_page   import UsersPage
+from ui.users_page     import UsersPage
 from ui.templates_page import TemplatesPage
 from ui.settings_page  import SettingsPage
+from ui.whatsapp_page  import WhatsAppPage
 
 
 # Role-based nav visibility
@@ -32,22 +33,25 @@ NAV_PERMISSIONS = {
     "sr":         ["Admin", "Manager", "Technical", "User"],
     "routes":     ["Admin", "Manager"],
     "pipelines":  ["Admin", "Manager"],
-    "users":      ["Admin", "Manager"],
     "templates":  ["Admin", "Manager"],
+    "whatsapp":   ["Admin", "Manager", "Technical"],
+    "users":      ["Admin", "Manager"],
     "settings":   ["Admin"],
 }
 
 NAV_ITEMS = [
-    ("WORKSPACE",  None),
-    ("Dashboard",  "dashboard",  "▪"),
-    ("Service Requests", "sr",   "▪"),
-    ("CONFIGURATION", None),
-    ("Routes",     "routes",     "▪"),
-    ("Pipelines",  "pipelines",  "▪"),
-    ("Templates",  "templates",  "▪"),
-    ("ADMIN",      None),
-    ("Users",      "users",      "▪"),
-    ("Settings",   "settings",   "▪"),
+    ("WORKSPACE",        None),
+    ("Dashboard",        "dashboard",  "▪"),
+    ("Service Requests", "sr",         "▪"),
+    ("CONFIGURATION",    None),
+    ("Routes",           "routes",     "▪"),
+    ("Pipelines",        "pipelines",  "▪"),
+    ("Templates",        "templates",  "▪"),
+    ("COMMUNICATIONS",   None),
+    ("WhatsApp",         "whatsapp",   "▪"),
+    ("ADMIN",            None),
+    ("Users",            "users",      "▪"),
+    ("Settings",         "settings",   "▪"),
 ]
 
 
@@ -157,7 +161,7 @@ class MainWindow(QMainWindow):
         self.status_bar.addPermanentWidget(self.clock_label)
         db_info = storage.get_settings()
         self.status_bar.showMessage(
-            f"  SR Manager Enterprise  |  {db_info.get('company_name','')}  |  Phase 1 — Offline Mode"
+            f"  SR Manager Enterprise  |  {db_info.get('company_name','')}  |  Phase 2 — WhatsApp Enabled"
         )
 
     def _get_or_create_page(self, key):
@@ -170,6 +174,7 @@ class MainWindow(QMainWindow):
                 "users":     lambda: UsersPage(self.user),
                 "templates": lambda: TemplatesPage(self.user),
                 "settings":  lambda: SettingsPage(self.user),
+                "whatsapp":  lambda: WhatsAppPage(self.user),
             }
             if key not in page_map:
                 return None
