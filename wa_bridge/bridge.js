@@ -1,26 +1,4 @@
-/**
- * SR Manager — WhatsApp Bridge
- * IPC protocol: newline-delimited JSON on stdin/stdout
- *
- * Events emitted (stdout):
- *   {"event":"status","status":"bridge_ready"}
- *   {"event":"qr","qr":"<qr_string>"}
- *   {"event":"ready","phone":"...","name":"..."}
- *   {"event":"disconnected","reason":"..."}
- *   {"event":"logged_out"}
- *   {"event":"groups","groups":[...]}
- *   {"event":"sent","jid":"...","preview":"..."}
- *   {"event":"error","message":"...","detail":"..."}
- *   {"event":"pong"}
- *
- * Commands accepted (stdin):
- *   {"cmd":"connect"}
- *   {"cmd":"disconnect"}
- *   {"cmd":"send_message","jid":"...","text":"..."}
- *   {"cmd":"send_group","jid":"...","text":"..."}
- *   {"cmd":"get_groups"}
- *   {"cmd":"ping"}
- */
+
 
 'use strict';
 
