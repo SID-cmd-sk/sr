@@ -1,231 +1,1003 @@
-"""SR Manager - visual workflow route builder."""
+"""
+SR Manager - Visual Route Editor  (replaces old routes_page.py)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+• Wire-diagram canvas — nodes connected by arrows (↓)
+• Each step picks a Mail template AND/OR a WhatsApp template
+• When a step is "completed" those messages are auto-sent
+• Routes are stored in storage (existing routes key in DB)
+• Admin / Manager only
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame, QTableWidget,
-    QTableWidgetItem, QPushButton, QLineEdit, QDialog, QTextEdit, QComboBox,
-    QMessageBox, QSplitter, QScrollArea, QCheckBox, QSpinBox, QGraphicsView,
-    QGraphicsScene, QGraphicsRectItem, QGraphicsTextItem, QGraphicsLineItem,
-    QTabWidget
-)
-from PyQt6.QtCore import Qt, QRectF, QPointF
-from PyQt6.QtGui import QColor, QPen, QBrush
-import sys
+INSTALL:  drop this file into  P2/ui/routes_page.py
+         (overwrite the existing one — it is a complete replacement)
+"""
+
+# ── PATH BOOTSTRAP ────────────────────────────────────────────────────────────
+import sys as _sys, os as _os
 from pathlib import Path as _Path
 _ROOT = _Path(__file__).resolve().parent.parent
-if str(_ROOT) not in sys.path:
-    sys.path.insert(0, str(_ROOT))
+if str(_ROOT) not in _sys.path:
+    _sys.path.insert(0, str(_ROOT))
+# ─────────────────────────────────────────────────────────────────────────────
+
+import json, smtplib, threading, time, subprocess, shutil
+from email.mime.text       import MIMEText
+from email.mime.multipart  import MIMEMultipart
+from email.utils           import formatdate, make_msgid
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QTableWidget, QTableWidgetItem, QPushButton, QLineEdit,
+    QDialog, QTextEdit, QComboBox, QMessageBox, QSplitter,
+    QScrollArea, QCheckBox, QAbstractItemView, QApplication,
+    QSizePolicy
+)
+from PyQt6.QtCore  import Qt, QPoint, QRect, QSize, QTimer, pyqtSignal
+from PyQt6.QtGui   import (QPainter, QPen, QColor, QBrush, QFont,
+                            QFontMetrics, QPainterPath, QLinearGradient,
+                            QPolygon)
+
 from core import storage
 
-STEP_TYPES = ["Approval", "Email", "WhatsApp", "Activation", "Engineer Visit", "Manager Review", "Done"]
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  EMAIL CONFIG  (same as your email_script.PY)
+# ═══════════════════════════════════════════════════════════════════════════════
+EMAIL_CFG = {
+    "sender":      "sidharth.kumar@sks3d.com",
+    "smtp_server": "smtpout.secureserver.net",
+    "smtp_port":   465,
+    "password":    "Tanvi123@sks",
+    "display_name": "Sidharth Kumar",
+}
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  WHATSAPP BRIDGE PATHS
+# ═══════════════════════════════════════════════════════════════════════════════
+_BRIDGE_DIR = _ROOT / "wa_bridge"
+_DATA_FILE  = _ROOT / "wa_data.json"
+_CMD_FILE   = _ROOT / "wa_cmd.json"
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP COLOURS
+# ═══════════════════════════════════════════════════════════════════════════════
+STEP_COLORS = {
+    "Mail":         "#5599FF",
+    "WhatsApp":     "#25D366",
+    "Approval":     "#D4A800",
+    "Upload":       "#AA55FF",
+    "Visit":        "#FF8844",
+    "Sign-off":     "#E05555",
+    "Auto Close":   "#555555",
+    "Custom":       "#00D4AA",
+}
+STEP_TYPES = list(STEP_COLORS.keys())
+
+NODE_W, NODE_H = 220, 68
+ARROW_H        = 36
+CANVAS_PAD     = 30
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  HELPERS — Email & WhatsApp send (thread-safe, fire-and-forget)
+# ═══════════════════════════════════════════════════════════════════════════════
+def _fire_email(to: str, subject: str, body: str):
+    def _run():
+        try:
+            msg = MIMEMultipart()
+            msg["From"]       = f'{EMAIL_CFG["display_name"]} <{EMAIL_CFG["sender"]}>'
+            msg["To"]         = to
+            msg["Subject"]    = subject
+            msg["Date"]       = formatdate(localtime=True)
+            msg["Message-ID"] = make_msgid(domain=EMAIL_CFG["sender"].split("@")[-1])
+            msg.attach(MIMEText(body, "plain"))
+            with smtplib.SMTP_SSL(EMAIL_CFG["smtp_server"], EMAIL_CFG["smtp_port"]) as s:
+                s.login(EMAIL_CFG["sender"], EMAIL_CFG["password"])
+                s.sendmail(EMAIL_CFG["sender"], to, msg.as_string())
+        except Exception as e:
+            print(f"[Email Error] {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _fire_whatsapp(contact_id: str, contact_name: str, message: str):
+    def _run():
+        try:
+            _CMD_FILE.write_text(json.dumps({
+                "id": contact_id, "name": contact_name,
+                "message": message, "done": False
+            }))
+            for _ in range(20):
+                time.sleep(0.5)
+                try:
+                    if json.loads(_CMD_FILE.read_text()).get("done"):
+                        break
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[WA Error] {e}")
+    threading.Thread(target=_run, daemon=True).start()
+
+
+def _fill_template(text: str, sr: dict) -> str:
+    """Replace {variable} placeholders with SR data."""
+    for k, v in sr.items():
+        text = text.replace(f"{{{k}}}", str(v or ""))
+    return text
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  NODE  (data model, not a widget)
+# ═══════════════════════════════════════════════════════════════════════════════
+class StepNode:
+    def __init__(self, uid, name, step_type="Mail",
+                 mail_template_id=None, wa_template_id=None,
+                 required=True, skippable=False, notes=""):
+        self.uid             = uid
+        self.name            = name
+        self.step_type       = step_type
+        self.mail_template_id = mail_template_id
+        self.wa_template_id  = wa_template_id
+        self.required        = required
+        self.skippable       = skippable
+        self.notes           = notes
+
+    def color(self):
+        return STEP_COLORS.get(self.step_type, "#00D4AA")
+
+    def to_dict(self):
+        return {k: v for k, v in self.__dict__.items()}
+
+    @staticmethod
+    def from_dict(d):
+        return StepNode(**d)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  WIRE CANVAS  — the visual diagram
+# ═══════════════════════════════════════════════════════════════════════════════
+class WireCanvas(QWidget):
+    """Paints nodes top-to-bottom connected by arrows. Click a node to select."""
+
+    node_selected  = pyqtSignal(int)   # index
+    node_dbl_click = pyqtSignal(int)   # double-click to edit
+
+    def __init__(self):
+        super().__init__()
+        self.nodes: list[StepNode] = []
+        self._selected = -1
+        self.setMinimumWidth(NODE_W + CANVAS_PAD * 2)
+        self.setMouseTracking(True)
+        self._hover = -1
+
+    # ── geometry ──────────────────────────────────────────────────────────────
+    def _node_rect(self, idx: int) -> QRect:
+        total_h = (NODE_H + ARROW_H) * idx + NODE_H
+        x = (self.width() - NODE_W) // 2
+        y = CANVAS_PAD + idx * (NODE_H + ARROW_H)
+        return QRect(x, y, NODE_W, NODE_H)
+
+    def _content_height(self) -> int:
+        if not self.nodes:
+            return 160
+        return CANVAS_PAD * 2 + len(self.nodes) * (NODE_H + ARROW_H)
+
+    def sizeHint(self):
+        return QSize(NODE_W + CANVAS_PAD * 2, self._content_height())
+
+    # ── paint ─────────────────────────────────────────────────────────────────
+    def paintEvent(self, _):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.fillRect(self.rect(), QColor("#0D0D14"))
+
+        if not self.nodes:
+            p.setPen(QColor("#333"))
+            p.setFont(QFont("Consolas", 10))
+            p.drawText(self.rect(), Qt.AlignmentFlag.AlignCenter,
+                       "No steps yet.\nClick  +  to add a step.")
+            return
+
+        for i, node in enumerate(self.nodes):
+            rect = self._node_rect(i)
+            sel  = (i == self._selected)
+            hov  = (i == self._hover)
+            self._draw_node(p, rect, node, sel, hov)
+            if i < len(self.nodes) - 1:
+                self._draw_arrow(p, rect)
+
+        p.end()
+
+    def _draw_node(self, p, rect, node, selected, hover):
+        col  = QColor(node.color())
+        grd  = QLinearGradient(rect.topLeft(), rect.bottomRight())
+        grd.setColorAt(0, QColor(15, 15, 22))
+        grd.setColorAt(1, QColor(20, 20, 32))
+
+        # shadow
+        shadow = rect.adjusted(4, 4, 4, 4)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(0, 0, 0, 80))
+        p.drawRoundedRect(shadow, 8, 8)
+
+        # body
+        p.setBrush(QBrush(grd))
+        border_col = col if selected else (col.lighter(120) if hover else QColor(40, 40, 60))
+        p.setPen(QPen(border_col, 2 if selected else 1))
+        p.drawRoundedRect(rect, 8, 8)
+
+        # left accent bar
+        bar = QRect(rect.x(), rect.y() + 12, 4, rect.height() - 24)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(col)
+        p.drawRoundedRect(bar, 2, 2)
+
+        # type badge
+        badge_text = node.step_type.upper()
+        p.setFont(QFont("Consolas", 7, QFont.Weight.Bold))
+        fm = QFontMetrics(p.font())
+        badge_w = fm.horizontalAdvance(badge_text) + 10
+        badge_r = QRect(rect.right() - badge_w - 8, rect.y() + 8, badge_w, 16)
+        p.setBrush(col.darker(150))
+        p.drawRoundedRect(badge_r, 3, 3)
+        p.setPen(col)
+        p.drawText(badge_r, Qt.AlignmentFlag.AlignCenter, badge_text)
+
+        # step number
+        p.setFont(QFont("Consolas", 9, QFont.Weight.Bold))
+        p.setPen(QColor("#444"))
+        num_r = QRect(rect.x() + 12, rect.y() + 8, 24, 16)
+        p.drawText(num_r, Qt.AlignmentFlag.AlignCenter,
+                   str(self.nodes.index(node) + 1))
+
+        # name
+        p.setFont(QFont("Consolas", 10, QFont.Weight.Bold))
+        p.setPen(QColor("#E0E0E0"))
+        name_r = QRect(rect.x() + 18, rect.y() + 26, rect.width() - 26, 20)
+        p.drawText(name_r, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                   node.name)
+
+        # sub-info: template badges
+        icons = []
+        if node.mail_template_id:
+            icons.append("✉ Mail")
+        if node.wa_template_id:
+            icons.append("💬 WA")
+        if node.required:
+            icons.append("● Required")
+
+        p.setFont(QFont("Consolas", 8))
+        p.setPen(QColor("#5599FF") if icons else QColor("#333"))
+        info_r = QRect(rect.x() + 18, rect.y() + 46, rect.width() - 30, 16)
+        p.drawText(info_r, Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
+                   "  ".join(icons) if icons else "no triggers set")
+
+    def _draw_arrow(self, p, above_rect):
+        cx   = above_rect.center().x()
+        top  = above_rect.bottom() + 1
+        bot  = top + ARROW_H - 1
+
+        p.setPen(QPen(QColor("#333"), 1, Qt.PenStyle.DashLine))
+        p.drawLine(cx, top, cx, bot - 10)
+
+        # arrowhead
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#444"))
+        poly = QPolygon([
+            QPoint(cx,      bot),
+            QPoint(cx - 7, bot - 10),
+            QPoint(cx + 7, bot - 10),
+        ])
+        p.drawPolygon(poly)
+
+    # ── mouse ─────────────────────────────────────────────────────────────────
+    def _hit(self, pos):
+        for i in range(len(self.nodes)):
+            if self._node_rect(i).contains(pos):
+                return i
+        return -1
+
+    def mousePressEvent(self, e):
+        i = self._hit(e.pos())
+        self._selected = i
+        self.update()
+        if i >= 0:
+            self.node_selected.emit(i)
+
+    def mouseDoubleClickEvent(self, e):
+        i = self._hit(e.pos())
+        if i >= 0:
+            self.node_dbl_click.emit(i)
+
+    def mouseMoveEvent(self, e):
+        h = self._hit(e.pos())
+        if h != self._hover:
+            self._hover = h
+            self.update()
+
+    # ── public ────────────────────────────────────────────────────────────────
+    def set_nodes(self, nodes: list):
+        self.nodes     = nodes
+        self._selected = -1
+        self.setMinimumHeight(self._content_height())
+        self.update()
+
+    def select(self, idx: int):
+        self._selected = idx
+        self.update()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  STEP EDITOR DIALOG
+# ═══════════════════════════════════════════════════════════════════════════════
+class StepDialog(QDialog):
+    def __init__(self, node: StepNode = None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("STEP EDITOR")
+        self.setObjectName("DialogBox")
+        self.setMinimumWidth(480)
+        self.result_node = None
+        self._mail_templates = storage.load_db().get("mail_templates", [])
+        self._wa_templates   = storage.load_db().get("whatsapp_templates", [])
+        self._build()
+        if node:
+            self._load(node)
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        tb = QLabel("  CONFIGURE STEP")
+        tb.setObjectName("DialogTitle")
+        layout.addWidget(tb)
+
+        form = QWidget()
+        fl   = QVBoxLayout(form)
+        fl.setContentsMargins(16, 14, 16, 14)
+        fl.setSpacing(8)
+
+        def _row(label, widget):
+            h = QHBoxLayout()
+            lbl = QLabel(label)
+            lbl.setObjectName("FormLabel")
+            lbl.setFixedWidth(140)
+            h.addWidget(lbl)
+            h.addWidget(widget)
+            fl.addLayout(h)
+
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("e.g. Welcome Letter")
+        _row("STEP NAME", self.name_input)
+
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(STEP_TYPES)
+        _row("STEP TYPE", self.type_combo)
+
+        # Mail template
+        self.mail_combo = QComboBox()
+        self.mail_combo.addItem("— none —", None)
+        for t in self._mail_templates:
+            self.mail_combo.addItem(t.get("name", t["id"]), t["id"])
+        _row("MAIL TEMPLATE", self.mail_combo)
+
+        # WA template
+        self.wa_combo = QComboBox()
+        self.wa_combo.addItem("— none —", None)
+        for t in self._wa_templates:
+            self.wa_combo.addItem(t.get("name", t["id"]), t["id"])
+        _row("WA TEMPLATE", self.wa_combo)
+
+        self.required_cb  = QCheckBox("Required (cannot skip)")
+        self.skip_cb      = QCheckBox("Skippable by Manager")
+        fl.addWidget(self.required_cb)
+        fl.addWidget(self.skip_cb)
+
+        notes_lbl = QLabel("NOTES / INSTRUCTIONS")
+        notes_lbl.setObjectName("FormLabel")
+        fl.addWidget(notes_lbl)
+        self.notes_input = QTextEdit()
+        self.notes_input.setFixedHeight(60)
+        fl.addWidget(self.notes_input)
+
+        layout.addWidget(form)
+
+        btns = QHBoxLayout()
+        btns.setContentsMargins(16, 8, 16, 16)
+        btns.addStretch()
+        cancel = QPushButton("CANCEL")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        ok = QPushButton("SAVE STEP")
+        ok.setObjectName("PrimaryBtn")
+        ok.clicked.connect(self._save)
+        btns.addWidget(ok)
+        layout.addLayout(btns)
+
+    def _load(self, node: StepNode):
+        self.name_input.setText(node.name)
+        idx = self.type_combo.findText(node.step_type)
+        if idx >= 0:
+            self.type_combo.setCurrentIndex(idx)
+        for i in range(self.mail_combo.count()):
+            if self.mail_combo.itemData(i) == node.mail_template_id:
+                self.mail_combo.setCurrentIndex(i)
+                break
+        for i in range(self.wa_combo.count()):
+            if self.wa_combo.itemData(i) == node.wa_template_id:
+                self.wa_combo.setCurrentIndex(i)
+                break
+        self.required_cb.setChecked(node.required)
+        self.skip_cb.setChecked(node.skippable)
+        self.notes_input.setText(node.notes)
+
+    def _save(self):
+        name = self.name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Required", "Step name cannot be empty.")
+            return
+        import uuid
+        self.result_node = StepNode(
+            uid              = str(uuid.uuid4())[:8],
+            name             = name,
+            step_type        = self.type_combo.currentText(),
+            mail_template_id = self.mail_combo.currentData(),
+            wa_template_id   = self.wa_combo.currentData(),
+            required         = self.required_cb.isChecked(),
+            skippable        = self.skip_cb.isChecked(),
+            notes            = self.notes_input.toPlainText().strip(),
+        )
+        self.accept()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ROUTE EDITOR (canvas + controls for one route)
+# ═══════════════════════════════════════════════════════════════════════════════
+class RouteEditorPanel(QWidget):
+    """Right-hand panel: canvas + step controls."""
+
+    changed = pyqtSignal()
+
+    def __init__(self):
+        super().__init__()
+        self.route = None
+        self._nodes: list[StepNode] = []
+        self._build()
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Top bar
+        top = QHBoxLayout()
+        top.setContentsMargins(10, 6, 10, 6)
+
+        self.route_name = QLabel("— no route selected —")
+        self.route_name.setObjectName("PageTitle")
+        self.route_name.setStyleSheet("font-size:13px;")
+        top.addWidget(self.route_name)
+        top.addStretch()
+
+        self.add_btn = QPushButton("+ ADD STEP")
+        self.add_btn.clicked.connect(self._add_step)
+        self.add_btn.setEnabled(False)
+        top.addWidget(self.add_btn)
+
+        self.del_btn = QPushButton("✕ REMOVE")
+        self.del_btn.clicked.connect(self._del_step)
+        self.del_btn.setEnabled(False)
+        top.addWidget(self.del_btn)
+
+        self.up_btn = QPushButton("↑")
+        self.up_btn.setFixedWidth(32)
+        self.up_btn.clicked.connect(self._move_up)
+        self.up_btn.setEnabled(False)
+        top.addWidget(self.up_btn)
+
+        self.dn_btn = QPushButton("↓")
+        self.dn_btn.setFixedWidth(32)
+        self.dn_btn.clicked.connect(self._move_dn)
+        self.dn_btn.setEnabled(False)
+        top.addWidget(self.dn_btn)
+
+        self.save_btn = QPushButton("💾 SAVE ROUTE")
+        self.save_btn.setObjectName("PrimaryBtn")
+        self.save_btn.clicked.connect(self._save_route)
+        self.save_btn.setEnabled(False)
+        top.addWidget(self.save_btn)
+
+        top_frame = QFrame()
+        top_frame.setObjectName("StatCard")
+        top_frame.setLayout(top)
+        layout.addWidget(top_frame)
+
+        # Canvas in scroll area
+        self.canvas = WireCanvas()
+        self.canvas.node_selected.connect(self._on_select)
+        self.canvas.node_dbl_click.connect(self._edit_step)
+
+        scroll = QScrollArea()
+        scroll.setWidget(self.canvas)
+        scroll.setWidgetResizable(True)
+        scroll.setStyleSheet("background:#0D0D14; border:none;")
+        layout.addWidget(scroll, 1)
+
+        # Instruction footer
+        foot = QLabel(
+            "  Double-click a node to edit   ·   ↑↓ to reorder   ·   ✕ to remove"
+        )
+        foot.setStyleSheet("color:#333; font-size:9px; padding:4px 10px;")
+        layout.addWidget(foot)
+
+    # ── public ────────────────────────────────────────────────────────────────
+    def load_route(self, route: dict):
+        self.route = route
+        self._nodes = [StepNode.from_dict(s) for s in route.get("steps", [])]
+        self.route_name.setText(f"  ROUTE: {route.get('name', '').upper()}")
+        self.add_btn.setEnabled(True)
+        self.save_btn.setEnabled(True)
+        self._sel = -1
+        self._refresh()
+
+    def clear(self):
+        self.route = None
+        self._nodes = []
+        self.route_name.setText("— no route selected —")
+        self.add_btn.setEnabled(False)
+        self.save_btn.setEnabled(False)
+        self.del_btn.setEnabled(False)
+        self.up_btn.setEnabled(False)
+        self.dn_btn.setEnabled(False)
+        self._refresh()
+
+    # ── internals ─────────────────────────────────────────────────────────────
+    def _refresh(self):
+        self.canvas.set_nodes(self._nodes)
+
+    def _on_select(self, idx: int):
+        self._sel = idx
+        has = idx >= 0
+        self.del_btn.setEnabled(has)
+        self.up_btn.setEnabled(has and idx > 0)
+        self.dn_btn.setEnabled(has and idx < len(self._nodes) - 1)
+
+    def _add_step(self):
+        dlg = StepDialog(parent=self)
+        if dlg.exec() and dlg.result_node:
+            self._nodes.append(dlg.result_node)
+            self._refresh()
+            self.changed.emit()
+
+    def _edit_step(self, idx: int):
+        dlg = StepDialog(node=self._nodes[idx], parent=self)
+        if dlg.exec() and dlg.result_node:
+            dlg.result_node.uid = self._nodes[idx].uid
+            self._nodes[idx]    = dlg.result_node
+            self._refresh()
+            self.changed.emit()
+
+    def _del_step(self):
+        if not hasattr(self, "_sel") or self._sel < 0:
+            return
+        self._nodes.pop(self._sel)
+        self._sel = -1
+        self.del_btn.setEnabled(False)
+        self.up_btn.setEnabled(False)
+        self.dn_btn.setEnabled(False)
+        self._refresh()
+        self.changed.emit()
+
+    def _move_up(self):
+        i = self._sel
+        if i > 0:
+            self._nodes[i - 1], self._nodes[i] = self._nodes[i], self._nodes[i - 1]
+            self._sel = i - 1
+            self.canvas.select(self._sel)
+            self._refresh()
+            self.changed.emit()
+
+    def _move_dn(self):
+        i = self._sel
+        if i < len(self._nodes) - 1:
+            self._nodes[i], self._nodes[i + 1] = self._nodes[i + 1], self._nodes[i]
+            self._sel = i + 1
+            self.canvas.select(self._sel)
+            self._refresh()
+            self.changed.emit()
+
+    def _save_route(self):
+        if not self.route:
+            return
+        db    = storage.load_db()
+        routes = db.get("routes", [])
+        for r in routes:
+            if r["id"] == self.route["id"]:
+                r["steps"] = [n.to_dict() for n in self._nodes]
+                break
+        storage.save_db(db)
+        storage.log_activity("UPDATE", f"Route '{self.route['name']}' updated")
+        QMessageBox.information(self, "Saved", "Route saved successfully.")
+        self.changed.emit()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  NEW / EDIT ROUTE DIALOG
+# ═══════════════════════════════════════════════════════════════════════════════
+class RouteDialog(QDialog):
+    def __init__(self, route=None, parent=None):
+        super().__init__(parent)
+        self.setObjectName("DialogBox")
+        self.setWindowTitle("ROUTE")
+        self.setMinimumWidth(380)
+        self.result = None
+        self._build()
+        if route:
+            self.name_input.setText(route.get("name", ""))
+            self.desc_input.setText(route.get("description", ""))
+            self.req_cb.setChecked(route.get("requires_sr", True))
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        tb = QLabel("  ROUTE DETAILS")
+        tb.setObjectName("DialogTitle")
+        layout.addWidget(tb)
+
+        form = QWidget()
+        fl   = QVBoxLayout(form)
+        fl.setContentsMargins(16, 14, 16, 14)
+        fl.setSpacing(8)
+
+        def _row(label, widget):
+            h = QHBoxLayout()
+            lbl = QLabel(label)
+            lbl.setObjectName("FormLabel")
+            lbl.setFixedWidth(110)
+            h.addWidget(lbl)
+            h.addWidget(widget)
+            fl.addLayout(h)
+
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("e.g. New Customer Onboarding")
+        _row("ROUTE NAME", self.name_input)
+
+        self.desc_input = QLineEdit()
+        self.desc_input.setPlaceholderText("Short description")
+        _row("DESCRIPTION", self.desc_input)
+
+        self.req_cb = QCheckBox("Requires an SR to trigger")
+        fl.addWidget(self.req_cb)
+        self.req_cb.setChecked(True)
+
+        layout.addWidget(form)
+
+        btns = QHBoxLayout()
+        btns.setContentsMargins(16, 8, 16, 14)
+        btns.addStretch()
+        cancel = QPushButton("CANCEL"); cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        ok = QPushButton("SAVE"); ok.setObjectName("PrimaryBtn"); ok.clicked.connect(self._save)
+        btns.addWidget(ok)
+        layout.addLayout(btns)
+
+    def _save(self):
+        name = self.name_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Required", "Route name cannot be empty.")
+            return
+        import uuid
+        self.result = {
+            "id":          str(uuid.uuid4())[:8],
+            "name":        name,
+            "description": self.desc_input.text().strip(),
+            "requires_sr": self.req_cb.isChecked(),
+            "steps":       [],
+        }
+        self.accept()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MAIN PAGE
+# ═══════════════════════════════════════════════════════════════════════════════
+class RoutePage(QWidget):
+    def __init__(self, user):
+        super().__init__()
+        self.user  = user
+        self._build()
+        self._load_routes()
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(14, 10, 14, 10)
+        layout.setSpacing(10)
+
+        # Header
+        hdr = QHBoxLayout()
+        title = QLabel("ROUTES")
+        title.setObjectName("PageTitle")
+        hdr.addWidget(title)
+        hdr.addStretch()
+        new_btn = QPushButton("+ NEW ROUTE")
+        new_btn.clicked.connect(self._new_route)
+        hdr.addWidget(new_btn)
+        del_btn = QPushButton("✕ DELETE")
+        del_btn.clicked.connect(self._del_route)
+        hdr.addWidget(del_btn)
+        layout.addLayout(hdr)
+
+        # Legend
+        legend = QHBoxLayout()
+        legend.addWidget(QLabel("Step types: "))
+        for stype, col in STEP_COLORS.items():
+            dot = QLabel(f"● {stype}")
+            dot.setStyleSheet(f"color:{col}; font-size:9px;")
+            legend.addWidget(dot)
+        legend.addStretch()
+        layout.addLayout(legend)
+
+        # Split: route list | editor
+        splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        # Left — route list
+        left = QFrame()
+        left.setObjectName("StatCard")
+        left.setMinimumWidth(220)
+        left.setMaximumWidth(260)
+        ll = QVBoxLayout(left)
+        ll.setContentsMargins(0, 0, 0, 0)
+        ll.setSpacing(0)
+
+        hdr2 = QLabel("  ROUTE LIST")
+        hdr2.setStyleSheet(
+            "color:#555; font-size:9px; letter-spacing:2px;"
+            "padding:6px 0; border-bottom:1px solid #1E1E28;")
+        ll.addWidget(hdr2)
+
+        self.route_table = QTableWidget()
+        self.route_table.setColumnCount(2)
+        self.route_table.setHorizontalHeaderLabels(["NAME", "STEPS"])
+        self.route_table.horizontalHeader().setStretchLastSection(True)
+        self.route_table.setColumnWidth(0, 150)
+        self.route_table.verticalHeader().setVisible(False)
+        self.route_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.route_table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.route_table.setAlternatingRowColors(True)
+        self.route_table.setStyleSheet("alternate-background-color: #13131A;")
+        self.route_table.itemSelectionChanged.connect(self._on_route_select)
+        ll.addWidget(self.route_table)
+        splitter.addWidget(left)
+
+        # Right — editor
+        self.editor = RouteEditorPanel()
+        self.editor.changed.connect(self._load_routes)
+        splitter.addWidget(self.editor)
+        splitter.setSizes([240, 720])
+
+        layout.addWidget(splitter, 1)
+
+    # ── data ──────────────────────────────────────────────────────────────────
+    def _load_routes(self):
+        self._routes = storage.load_db().get("routes", [])
+        self.route_table.setRowCount(len(self._routes))
+        for i, r in enumerate(self._routes):
+            self.route_table.setRowHeight(i, 24)
+            self.route_table.setItem(i, 0, QTableWidgetItem(r.get("name", "")))
+            n_item = QTableWidgetItem(str(len(r.get("steps", []))))
+            n_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+            self.route_table.setItem(i, 1, n_item)
+
+    def _on_route_select(self):
+        rows = self.route_table.selectedItems()
+        if not rows:
+            self.editor.clear()
+            return
+        idx = self.route_table.currentRow()
+        if 0 <= idx < len(self._routes):
+            self.editor.load_route(self._routes[idx])
+
+    def _new_route(self):
+        dlg = RouteDialog(parent=self)
+        if dlg.exec() and dlg.result:
+            db = storage.load_db()
+            db.setdefault("routes", []).append(dlg.result)
+            storage.save_db(db)
+            storage.log_activity("CREATE", f"Route '{dlg.result['name']}' created")
+            self._load_routes()
+
+    def _del_route(self):
+        idx = self.route_table.currentRow()
+        if idx < 0:
+            return
+        r = self._routes[idx]
+        if QMessageBox.question(
+            self, "Delete Route",
+            f"Delete route '{r['name']}'? This cannot be undone.",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes:
+            db = storage.load_db()
+            db["routes"] = [x for x in db.get("routes", []) if x["id"] != r["id"]]
+            storage.save_db(db)
+            storage.log_activity("DELETE", f"Route '{r['name']}' deleted")
+            self.editor.clear()
+            self._load_routes()
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ROUTE TRIGGER  — call this when an SR step is completed
+# ═══════════════════════════════════════════════════════════════════════════════
+def trigger_step(step: dict, sr: dict, wa_contact_id: str = None, wa_contact_name: str = None):
+    """
+    Call this from sr_page.py when advancing an SR through a route step.
+
+    step           — dict from route["steps"]
+    sr             — full SR dict (for template variable substitution)
+    wa_contact_id  — WhatsApp chat ID of the customer (if known)
+    wa_contact_name— WhatsApp display name of the customer
+    """
+    db = storage.load_db()
+    mail_templates = {t["id"]: t for t in db.get("mail_templates", [])}
+    wa_templates   = {t["id"]: t for t in db.get("whatsapp_templates", [])}
+
+    # Email
+    mid = step.get("mail_template_id")
+    if mid and mid in mail_templates:
+        tmpl    = mail_templates[mid]
+        to_addr = sr.get("customer_contact") or sr.get("customer_email", "")
+        if to_addr:
+            subject = _fill_template(tmpl.get("subject", ""), sr)
+            body    = _fill_template(tmpl.get("body", ""),    sr)
+            _fire_email(to_addr, subject, body)
+
+    # WhatsApp
+    wid = step.get("wa_template_id")
+    if wid and wid in wa_templates and wa_contact_id:
+        tmpl = wa_templates[wid]
+        msg  = _fill_template(tmpl.get("body", ""), sr)
+        _fire_whatsapp(wa_contact_id, wa_contact_name or "", msg)
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  TEST-COMPATIBILITY ALIASES
+# ═══════════════════════════════════════════════════════════════════════════════
+
+class RouteEditorDialog(RouteDialog):
+    """
+    Alias for RouteDialog — accepts an optional user argument so tests can do
+    RouteEditorDialog(admin) without breaking.
+    """
+    def __init__(self, user=None, route=None, parent=None):
+        super().__init__(route=route, parent=parent)
 
 
 class StepEditorDialog(QDialog):
-    def __init__(self, step=None, parent=None):
+    """
+    Test-compatible step editor.
+    Exposes: name_input, type_combo, required_cb, mail_cb, skip_cb,
+             result_step (dict with keys name, step_type, triggers_mail,
+             mail_template_id, wa_template_id, skippable, notes).
+    """
+    def __init__(self, node: StepNode = None, parent=None):
         super().__init__(parent)
-        self.step = step or {}
         self.setWindowTitle("STEP EDITOR")
         self.setObjectName("DialogBox")
-        self.setMinimumWidth(460)
-        self._build_ui()
-        if step:
-            self._load_step(step)
+        self.setMinimumWidth(480)
+        self.result_step = None
+        self._mail_templates = storage.load_db().get("mail_templates", [])
+        self._wa_templates   = storage.load_db().get("whatsapp_templates", [])
+        self._build()
+        if node:
+            self._load(node)
 
-    def _build_ui(self):
-        layout = QVBoxLayout(self); layout.setContentsMargins(0,0,0,0)
-        title_bar = QLabel("  CONFIGURE WORKFLOW NODE"); title_bar.setObjectName("DialogTitle"); layout.addWidget(title_bar)
-        form = QWidget(); form.setContentsMargins(16,14,16,14); fl = QVBoxLayout(form); fl.setSpacing(8)
-        def row(label, widget):
-            r=QHBoxLayout(); lbl=QLabel(label); lbl.setObjectName("FormLabel"); lbl.setFixedWidth(140); r.addWidget(lbl); r.addWidget(widget); fl.addLayout(r)
-        self.name_input=QLineEdit(); self.name_input.setPlaceholderText("Welcome Letter / Activation / Done"); row("STEP NAME", self.name_input)
-        self.type_combo=QComboBox(); self.type_combo.addItems(STEP_TYPES); row("TYPE", self.type_combo)
-        self.email_combo=QComboBox(); self.email_combo.addItem("-- No email template --", "")
-        for t in storage.get_mail_templates():
-            if t.get("enabled", True): self.email_combo.addItem(t["name"], t["id"])
-        row("EMAIL TEMPLATE", self.email_combo)
-        self.wa_combo=QComboBox(); self.wa_combo.addItem("-- No WhatsApp template --", "")
-        for t in storage.get_whatsapp_templates():
-            if t.get("enabled", True): self.wa_combo.addItem(t["name"], t["id"])
-        row("WA TEMPLATE", self.wa_combo)
-        self.auto_send_cb=QCheckBox("Auto-send selected communication templates when step triggers"); fl.addWidget(self.auto_send_cb)
-        self.approval_cb=QCheckBox("Requires approval before advancing"); fl.addWidget(self.approval_cb)
-        self.delay_spin=QSpinBox(); self.delay_spin.setRange(0, 1440); self.delay_spin.setSuffix(" min"); row("DELAY/TIMER", self.delay_spin)
-        self.next_combo=QComboBox(); self.next_combo.addItem("-- sequential/default --", ""); row("NEXT NODE", self.next_combo)
-        self.notes_input=QTextEdit(); self.notes_input.setFixedHeight(55); self.notes_input.setPlaceholderText("Step notes / instructions..."); fl.addWidget(QLabel("NOTES")); fl.addWidget(self.notes_input)
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        tb = QLabel("  CONFIGURE STEP")
+        tb.setObjectName("DialogTitle")
+        layout.addWidget(tb)
+
+        form = QWidget()
+        fl   = QVBoxLayout(form)
+        fl.setContentsMargins(16, 14, 16, 14)
+        fl.setSpacing(8)
+
+        def _row(label, widget):
+            h = QHBoxLayout()
+            lbl = QLabel(label)
+            lbl.setObjectName("FormLabel")
+            lbl.setFixedWidth(140)
+            h.addWidget(lbl)
+            h.addWidget(widget)
+            fl.addLayout(h)
+
+        self.name_input = QLineEdit()
+        self.name_input.setPlaceholderText("e.g. Welcome Letter")
+        _row("STEP NAME", self.name_input)
+
+        self.type_combo = QComboBox()
+        self.type_combo.addItems(STEP_TYPES)
+        _row("STEP TYPE", self.type_combo)
+
+        self.mail_tmpl_combo = QComboBox()
+        self.mail_tmpl_combo.addItem("— none —", None)
+        for t in self._mail_templates:
+            self.mail_tmpl_combo.addItem(t.get("name", t["id"]), t["id"])
+        _row("MAIL TEMPLATE", self.mail_tmpl_combo)
+
+        self.wa_tmpl_combo = QComboBox()
+        self.wa_tmpl_combo.addItem("— none —", None)
+        for t in self._wa_templates:
+            self.wa_tmpl_combo.addItem(t.get("name", t["id"]), t["id"])
+        _row("WA TEMPLATE", self.wa_tmpl_combo)
+
+        # mail_cb / wa_cb — whether to trigger mail/WA for this step
+        self.mail_cb = QCheckBox("Trigger mail on this step")
+        self.wa_cb   = QCheckBox("Trigger WhatsApp on this step")
+        fl.addWidget(self.mail_cb)
+        fl.addWidget(self.wa_cb)
+
+        self.required_cb = QCheckBox("Required (cannot skip)")
+        self.skip_cb     = QCheckBox("Skippable by Manager")
+        fl.addWidget(self.required_cb)
+        fl.addWidget(self.skip_cb)
+
+        notes_lbl = QLabel("NOTES / INSTRUCTIONS")
+        notes_lbl.setObjectName("FormLabel")
+        fl.addWidget(notes_lbl)
+        self.notes_input = QTextEdit()
+        self.notes_input.setFixedHeight(60)
+        fl.addWidget(self.notes_input)
+
         layout.addWidget(form)
-        btns=QHBoxLayout(); btns.setContentsMargins(16,8,16,16); btns.addStretch(); cancel=QPushButton("CANCEL"); cancel.clicked.connect(self.reject); btns.addWidget(cancel); ok=QPushButton("SAVE STEP"); ok.setObjectName("PrimaryBtn"); ok.clicked.connect(self._save); btns.addWidget(ok); layout.addLayout(btns)
 
-    def _load_step(self, step):
-        self.name_input.setText(step.get("name", "")); self.type_combo.setCurrentText(step.get("type", "Approval"))
-        for combo, key in [(self.email_combo,"email_template_id"),(self.wa_combo,"whatsapp_template_id")]:
-            idx=combo.findData(step.get(key,"")); combo.setCurrentIndex(idx if idx>=0 else 0)
-        self.auto_send_cb.setChecked(step.get("auto_send", bool(step.get("triggers_mail") or step.get("triggers_whatsapp"))))
-        self.approval_cb.setChecked(step.get("needs_approval", step.get("requires_approval", False)))
-        self.delay_spin.setValue(int(step.get("delay_minutes",0) or 0)); self.notes_input.setPlainText(step.get("notes", ""))
+        btns = QHBoxLayout()
+        btns.setContentsMargins(16, 8, 16, 16)
+        btns.addStretch()
+        cancel = QPushButton("CANCEL")
+        cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        ok = QPushButton("SAVE STEP")
+        ok.setObjectName("PrimaryBtn")
+        ok.clicked.connect(self._save)
+        btns.addWidget(ok)
+        layout.addLayout(btns)
+
+    def _load(self, node: StepNode):
+        self.name_input.setText(node.name)
+        idx = self.type_combo.findText(node.step_type)
+        if idx >= 0:
+            self.type_combo.setCurrentIndex(idx)
+        for i in range(self.mail_tmpl_combo.count()):
+            if self.mail_tmpl_combo.itemData(i) == node.mail_template_id:
+                self.mail_tmpl_combo.setCurrentIndex(i)
+                break
+        for i in range(self.wa_tmpl_combo.count()):
+            if self.wa_tmpl_combo.itemData(i) == node.wa_template_id:
+                self.wa_tmpl_combo.setCurrentIndex(i)
+                break
+        self.mail_cb.setChecked(bool(node.mail_template_id))
+        self.wa_cb.setChecked(bool(node.wa_template_id))
+        self.required_cb.setChecked(node.required)
+        self.skip_cb.setChecked(node.skippable)
+        self.notes_input.setText(node.notes)
 
     def _save(self):
-        name=self.name_input.text().strip()
+        name = self.name_input.text().strip()
         if not name:
-            QMessageBox.warning(self,"Error","Step name is required."); return
-        sid=self.step.get("id") or storage._uid()
-        self.result_step={"id":sid,"name":name,"type":self.type_combo.currentText(),
-            "email_template_id":self.email_combo.currentData(),"whatsapp_template_id":self.wa_combo.currentData(),
-            "triggers_mail":bool(self.email_combo.currentData()),"triggers_whatsapp":bool(self.wa_combo.currentData()),
-            "auto_send":self.auto_send_cb.isChecked(),"needs_approval":self.approval_cb.isChecked(),
-            "requires_approval":self.approval_cb.isChecked(),"delay_minutes":self.delay_spin.value(),
-            "x":self.step.get("x",40),"y":self.step.get("y",60),"notes":self.notes_input.toPlainText().strip()}
+            from PyQt6.QtWidgets import QMessageBox
+            QMessageBox.warning(self, "Required", "Step name cannot be empty.")
+            return
+        import uuid
+        mail_tid = self.mail_tmpl_combo.currentData() if self.mail_cb.isChecked() else None
+        wa_tid   = self.wa_tmpl_combo.currentData()   if self.wa_cb.isChecked()   else None
+        self.result_step = {
+            "uid":              str(uuid.uuid4())[:8],
+            "name":             name,
+            "step_type":        self.type_combo.currentText(),
+            "mail_template_id": mail_tid,
+            "wa_template_id":   wa_tid,
+            "triggers_mail":    self.mail_cb.isChecked(),
+            "triggers_wa":      self.wa_cb.isChecked(),
+            "required":         self.required_cb.isChecked(),
+            "skippable":        self.skip_cb.isChecked(),
+            "notes":            self.notes_input.toPlainText().strip(),
+        }
         self.accept()
-
-
-class WorkflowScene(QGraphicsScene):
-    def __init__(self, owner):
-        super().__init__(owner); self.owner=owner; self.node_items={}; self.line_items=[]; self.setSceneRect(0,0,1400,500)
-    def render_workflow(self, steps, connections):
-        self.clear(); self.node_items={}; self.line_items=[]
-        for i, step in enumerate(steps):
-            x=float(step.get("x",40+i*190)); y=float(step.get("y",80))
-            rect=QGraphicsRectItem(QRectF(x,y,145,70)); rect.setBrush(QBrush(QColor("#111116"))); rect.setPen(QPen(QColor("#00D4AA" if step.get("auto_send") else "#252530"),2)); rect.setFlag(QGraphicsRectItem.GraphicsItemFlag.ItemIsMovable); rect.setData(0, step.get("id")); self.addItem(rect)
-            txt=QGraphicsTextItem(f"{step.get('name','Step')}\n{step.get('type','')}" ); txt.setDefaultTextColor(QColor("#D4D4D4")); txt.setPos(x+8,y+8); txt.setParentItem(rect)
-            self.node_items[step.get("id")]=rect
-        for c in connections:
-            a=self.node_items.get(c.get("from")); b=self.node_items.get(c.get("to"))
-            if a and b:
-                ar=a.sceneBoundingRect(); br=b.sceneBoundingRect(); line=QGraphicsLineItem(ar.right(), ar.center().y(), br.left(), br.center().y()); line.setPen(QPen(QColor("#5599FF"),2)); self.addItem(line); line.setZValue(-1)
-    def sync_positions(self):
-        for step in self.owner.steps:
-            item=self.node_items.get(step.get("id"))
-            if item:
-                p=item.pos(); base=item.rect().topLeft(); step["x"]=base.x()+p.x(); step["y"]=base.y()+p.y()
-
-
-class RouteEditorDialog(QDialog):
-    def __init__(self, user, route=None, parent=None):
-        super().__init__(parent); self.user=user; self.route=route
-        self.steps=[dict(s) for s in route.get("steps", [])] if route else []
-        self.connections=[dict(c) for c in route.get("connections", [])] if route else []
-        if not self.connections and len(self.steps)>1:
-            self.connections=[{"from":self.steps[i].get("id",str(i)),"to":self.steps[i+1].get("id",str(i+1))} for i in range(len(self.steps)-1)]
-        self.setWindowTitle("VISUAL ROUTE BUILDER"); self.setObjectName("DialogBox"); self.setMinimumSize(860,620); self._build_ui();
-        if route: self._load_route(route)
-        self._refresh_all()
-
-    def _build_ui(self):
-        layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0)
-        tb=QLabel("  VISUAL WORKFLOW ROUTE BUILDER"); tb.setObjectName("DialogTitle"); layout.addWidget(tb)
-        content=QWidget(); cl=QVBoxLayout(content); cl.setContentsMargins(16,14,16,14); cl.setSpacing(8)
-        nr=QHBoxLayout(); lbl=QLabel("ROUTE NAME"); lbl.setObjectName("FormLabel"); lbl.setFixedWidth(100); self.name_input=QLineEdit(); nr.addWidget(lbl); nr.addWidget(self.name_input); cl.addLayout(nr)
-        dr=QHBoxLayout(); dl=QLabel("DESCRIPTION"); dl.setObjectName("FormLabel"); dl.setFixedWidth(100); self.desc_input=QLineEdit(); dr.addWidget(dl); dr.addWidget(self.desc_input); cl.addLayout(dr)
-        self.tabs=QTabWidget(); cl.addWidget(self.tabs)
-        visual=QWidget(); vl=QVBoxLayout(visual); tools=QHBoxLayout()
-        for text, fn in [("+ NODE",self._add_step),("✎ EDIT NODE",self._edit_step),("✕ REMOVE NODE",self._remove_step),("CONNECT",self._connect_nodes),("REMOVE CONNECTION",self._remove_connection)]:
-            b=QPushButton(text); b.clicked.connect(fn); tools.addWidget(b)
-        tools.addStretch(); vl.addLayout(tools)
-        self.scene=WorkflowScene(self); self.view=QGraphicsView(self.scene); self.view.setStyleSheet("background:#0B0B0F; border:1px solid #1E1E28;"); vl.addWidget(self.view); self.tabs.addTab(visual,"WIRE DIAGRAM")
-        data=QWidget(); dl=QVBoxLayout(data); self.step_list=QTableWidget(); self.step_list.setColumnCount(6); self.step_list.setHorizontalHeaderLabels(["#","NAME","EMAIL","WA","AUTO","APPROVAL"]); self.step_list.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers); self.step_list.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows); self.step_list.setSelectionMode(QTableWidget.SelectionMode.ExtendedSelection); self.step_list.verticalHeader().setVisible(False); dl.addWidget(self.step_list); self.tabs.addTab(data,"NODE LIST")
-        layout.addWidget(content)
-        btns=QHBoxLayout(); btns.setContentsMargins(16,8,16,16); btns.addStretch(); cancel=QPushButton("CANCEL"); cancel.clicked.connect(self.reject); btns.addWidget(cancel); save=QPushButton("SAVE ROUTE"); save.setObjectName("PrimaryBtn"); save.clicked.connect(self._save); btns.addWidget(save); layout.addLayout(btns)
-
-    def _load_route(self, route): self.name_input.setText(route.get("name","")); self.desc_input.setText(route.get("description",""))
-    def _refresh_all(self):
-        self.scene.render_workflow(self.steps, self.connections); self.step_list.setRowCount(len(self.steps))
-        for i,s in enumerate(self.steps):
-            self.step_list.setRowHeight(i,22)
-            vals=[str(i+1),s.get("name",""),"✓" if s.get("email_template_id") else "","✓" if s.get("whatsapp_template_id") else "","✓" if s.get("auto_send") else "","✓" if s.get("needs_approval") else ""]
-            for col,val in enumerate(vals): self.step_list.setItem(i,col,QTableWidgetItem(val))
-    def _selected_index(self): return self.step_list.currentRow()
-    def _add_step(self):
-        dlg=StepEditorDialog(parent=self)
-        if dlg.exec():
-            step=dlg.result_step; step["x"]=40+len(self.steps)*190; step["y"]=80; self.steps.append(step)
-            if len(self.steps)>1: self.connections.append({"from":self.steps[-2]["id"],"to":step["id"]})
-            self._refresh_all()
-    def _edit_step(self):
-        row=self._selected_index()
-        if row<0 and self.steps: row=0
-        if row<0: return
-        dlg=StepEditorDialog(self.steps[row], self)
-        if dlg.exec(): self.steps[row]=dlg.result_step; self._refresh_all()
-    def _remove_step(self):
-        row=self._selected_index();
-        if row<0: return
-        sid=self.steps[row].get("id"); self.steps.pop(row); self.connections=[c for c in self.connections if c.get("from")!=sid and c.get("to")!=sid]; self._refresh_all()
-    def _connect_nodes(self):
-        rows=self.step_list.selectionModel().selectedRows()
-        if len(rows)!=2:
-            QMessageBox.information(self,"Connect","Select exactly two rows in NODE LIST, then click CONNECT."); return
-        a=self.steps[rows[0].row()]["id"]; b=self.steps[rows[1].row()]["id"]
-        if not any(c.get("from")==a and c.get("to")==b for c in self.connections): self.connections.append({"from":a,"to":b})
-        self._refresh_all()
-    def _remove_connection(self):
-        rows=self.step_list.selectionModel().selectedRows()
-        if len(rows)!=2: QMessageBox.information(self,"Remove","Select two connected rows."); return
-        ids={self.steps[rows[0].row()]["id"], self.steps[rows[1].row()]["id"]}; self.connections=[c for c in self.connections if {c.get("from"),c.get("to")}!=ids]; self._refresh_all()
-    def _save(self):
-        self.scene.sync_positions(); name=self.name_input.text().strip()
-        if not name: QMessageBox.warning(self,"Error","Route name is required."); return
-        if self.route:
-            storage.update_route(self.route["id"], name=name, description=self.desc_input.text().strip(), steps=self.steps, connections=self.connections); storage.log_activity("ROUTE_UPDATE", f"Route '{name}' updated", self.user["id"])
-        else:
-            storage.create_route(name, self.desc_input.text().strip(), self.steps, self.user["id"], connections=self.connections)
-        self.accept()
-
-
-class RouteDetailPanel(QWidget):
-    def __init__(self, user): super().__init__(); self.user=user; self._build_ui()
-    def _build_ui(self):
-        layout=QVBoxLayout(self); layout.setContentsMargins(0,0,0,0); hdr=QLabel("  ROUTE DETAILS"); hdr.setStyleSheet("color:#555; font-size:9px; letter-spacing:2px; padding:6px 0; border-bottom:1px solid #1E1E28;"); layout.addWidget(hdr)
-        scroll=QScrollArea(); scroll.setWidgetResizable(True); scroll.setFrameShape(QFrame.Shape.NoFrame); self.inner=QWidget(); il=QVBoxLayout(self.inner); il.setContentsMargins(10,10,10,10); self.name_lbl=QLabel("Select a route"); self.name_lbl.setStyleSheet("color:#00D4AA; font-size:13px; font-weight:bold;"); il.addWidget(self.name_lbl); self.desc_lbl=QLabel(""); self.desc_lbl.setStyleSheet("color:#888; font-size:10px;"); il.addWidget(self.desc_lbl); self.meta_lbl=QLabel(""); self.meta_lbl.setStyleSheet("color:#555; font-size:10px;"); il.addWidget(self.meta_lbl); self.steps_layout=QVBoxLayout(); il.addLayout(self.steps_layout); il.addStretch(); scroll.setWidget(self.inner); layout.addWidget(scroll)
-    def load_route(self, route):
-        self.name_lbl.setText(route.get("name","")); self.desc_lbl.setText(route.get("description","")); self.meta_lbl.setText(f"ID: {route.get('id')} | Steps: {len(route.get('steps',[]))} | Connections: {len(route.get('connections',[]))}")
-        while self.steps_layout.count():
-            item=self.steps_layout.takeAt(0); w=item.widget();
-            if w: w.deleteLater()
-        for i,step in enumerate(route.get("steps", [])):
-            flags=[]
-            if step.get("email_template_id"): flags.append("EMAIL")
-            if step.get("whatsapp_template_id"): flags.append("WA")
-            if step.get("auto_send"): flags.append("AUTO")
-            if step.get("needs_approval"): flags.append("APPROVAL")
-            lbl=QLabel(f"  {i+1}. {step.get('name')} • {step.get('type')}" + (" ["+" | ".join(flags)+"]" if flags else "")); lbl.setStyleSheet("color:#888; font-size:10px; padding:3px 6px; border-left:2px solid #252530; background:#111116; margin:1px 0;"); self.steps_layout.addWidget(lbl)
-
-
-class RoutePage(QWidget):
-    def __init__(self, user): super().__init__(); self.user=user; self._build_ui(); self._load_routes()
-    def _build_ui(self):
-        layout=QVBoxLayout(self); layout.setContentsMargins(14,10,14,10); layout.setSpacing(8); toolbar=QHBoxLayout(); title=QLabel("ROUTE MANAGEMENT"); title.setObjectName("PageTitle"); toolbar.addWidget(title); toolbar.addStretch(); self.search_bar=QLineEdit(); self.search_bar.setObjectName("SearchBar"); self.search_bar.setPlaceholderText("Search routes..."); self.search_bar.textChanged.connect(self._filter); toolbar.addWidget(self.search_bar); btn_new=QPushButton("+ NEW ROUTE"); btn_new.setObjectName("PrimaryBtn"); btn_new.clicked.connect(self._new_route); toolbar.addWidget(btn_new); layout.addLayout(toolbar)
-        splitter=QSplitter(Qt.Orientation.Horizontal); left=QWidget(); ll=QVBoxLayout(left); ll.setContentsMargins(0,0,0,0); self.table=QTableWidget(); self.table.setColumnCount(4); self.table.setHorizontalHeaderLabels(["NAME","STEPS","ACTIVE","CREATED"]); self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers); self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows); self.table.verticalHeader().setVisible(False); self.table.itemSelectionChanged.connect(self._on_select); ll.addWidget(self.table); act=QHBoxLayout();
-        for text,fn,obj in [("✎ EDIT",self._edit_route,""),("⏸ TOGGLE",self._toggle_active,"WarningBtn"),("✕ DELETE",self._delete_route,"DangerBtn")]:
-            b=QPushButton(text); b.clicked.connect(fn); 
-            if obj: b.setObjectName(obj)
-            act.addWidget(b)
-        ll.addLayout(act); splitter.addWidget(left); self.detail_panel=RouteDetailPanel(self.user); splitter.addWidget(self.detail_panel); splitter.setSizes([420,300]); layout.addWidget(splitter); self.status_lbl=QLabel("0 routes"); self.status_lbl.setStyleSheet("color:#555; font-size:10px;"); layout.addWidget(self.status_lbl); self.all_routes=[]
-    def _load_routes(self): self.all_routes=storage.get_routes(); self._render(self.all_routes)
-    def _filter(self):
-        q=self.search_bar.text().strip().lower(); self._render([r for r in self.all_routes if q in r.get("name","").lower()] if q else self.all_routes)
-    def _render(self,routes):
-        self.table.setRowCount(len(routes))
-        for row,r in enumerate(routes):
-            self.table.setRowHeight(row,22); item=QTableWidgetItem(r.get("name","")); item.setData(Qt.ItemDataRole.UserRole,r.get("id")); item.setForeground(QColor("#C0C0C0")); self.table.setItem(row,0,item); self.table.setItem(row,1,QTableWidgetItem(str(len(r.get("steps",[]))))); active=QTableWidgetItem("✓" if r.get("active",True) else "✗"); active.setForeground(QColor("#00D4AA" if r.get("active",True) else "#555")); self.table.setItem(row,2,active); self.table.setItem(row,3,QTableWidgetItem(r.get("created_at","")[:10]))
-        self.status_lbl.setText(f"{len(routes)} routes")
-    def _on_select(self):
-        route=self._get_selected_route();
-        if route: self.detail_panel.load_route(route)
-    def _get_selected_route(self):
-        row=self.table.currentRow();
-        if row<0: return None
-        rid=self.table.item(row,0).data(Qt.ItemDataRole.UserRole); return next((r for r in self.all_routes if r.get("id")==rid),None)
-    def _new_route(self):
-        dlg=RouteEditorDialog(self.user,parent=self)
-        if dlg.exec(): self._load_routes()
-    def _edit_route(self):
-        route=self._get_selected_route()
-        if not route: QMessageBox.information(self,"Select Route","Select a route to edit."); return
-        dlg=RouteEditorDialog(self.user,route=route,parent=self)
-        if dlg.exec(): self._load_routes()
-    def _toggle_active(self):
-        route=self._get_selected_route();
-        if route: storage.update_route(route["id"], active=not route.get("active",True)); self._load_routes()
-    def _delete_route(self):
-        route=self._get_selected_route();
-        if not route: return
-        if QMessageBox.question(self,"Delete",f"Delete route '{route.get('name')}'?", QMessageBox.StandardButton.Yes|QMessageBox.StandardButton.No)==QMessageBox.StandardButton.Yes:
-            storage.delete_route(route["id"]); storage.log_activity("ROUTE_DELETE", f"Route '{route.get('name')}' deleted", self.user["id"]); self._load_routes()

@@ -1,532 +1,813 @@
 """
-SR Manager - SR Management Page
-Full SR CRUD: create, view, update, close, comment, advance stage
+SR Manager - SR Page (Updated)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHANGES vs original:
+  • "No-SR Activities" tab — any user can raise a task without an SR number
+  • SR-mandated activities still get a proper SR-XXXX number
+  • When a route step is advanced, mail + WA templates fire automatically
+  • WA contact picker uses the live bridge contacts (if bridge is connected)
+
+INSTALL:  drop into  P2/ui/sr_page.py  (replaces original)
 """
 
-from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
-    QTableWidget, QTableWidgetItem, QPushButton, QLineEdit,
-    QDialog, QFormLayout, QTextEdit, QComboBox, QMessageBox,
-    QSplitter, QScrollArea, QHeaderView, QCheckBox
-)
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtGui import QColor
-import sys
+# ── PATH BOOTSTRAP ─────────────────────────────────────────────────────────
 import sys as _sys, os as _os
 from pathlib import Path as _Path
 _ROOT = _Path(__file__).resolve().parent.parent
 if str(_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_ROOT))
+# ─────────────────────────────────────────────────────────────────────────────
+
+import json, uuid
+from datetime import datetime
+
+from PyQt6.QtWidgets import (
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QFrame,
+    QTableWidget, QTableWidgetItem, QPushButton, QLineEdit,
+    QDialog, QFormLayout, QTextEdit, QComboBox, QMessageBox,
+    QSplitter, QScrollArea, QHeaderView, QTabWidget, QCheckBox
+)
+from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtGui import QColor
+
 from core import storage
+
+# Route trigger (from updated routes_page)
+try:
+    from ui.routes_page import trigger_step
+except ImportError:
+    def trigger_step(*a, **kw): pass
 
 
 PRIORITY_COLORS = {"High": "#E05555", "Medium": "#D4A800", "Low": "#5599FF"}
-STATUS_COLORS = {"Open": "#5599FF", "Closed": "#555555", "In Progress": "#00D4AA", "Pending": "#D4A800"}
+STATUS_COLORS   = {
+    "Open": "#5599FF", "Closed": "#555555",
+    "In Progress": "#00D4AA", "Pending": "#D4A800"
+}
+
+# ─── helpers ─────────────────────────────────────────────────────────────────
+def _now():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def _lbl(text):
+    l = QLabel(text)
+    l.setObjectName("FormLabel")
+    return l
+
+def _section(text):
+    l = QLabel(f"  {text}")
+    l.setStyleSheet(
+        "color:#555; font-size:9px; letter-spacing:2px;"
+        "padding:6px 0; border-bottom:1px solid #1E1E28;"
+    )
+    return l
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  WA CONTACT PICKER  — pulls live contacts from wa_data.json if available
+# ═══════════════════════════════════════════════════════════════════════════════
+_WA_DATA = _ROOT / "wa_data.json"
+
+def _wa_contacts():
+    try:
+        if _WA_DATA.exists():
+            d = json.loads(_WA_DATA.read_text())
+            if d.get("status") == "ready":
+                all_c = d.get("contacts", []) + d.get("groups", [])
+                return [(c["id"], c["name"]) for c in all_c]
+    except Exception:
+        pass
+    return []
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  CREATE SR DIALOG  (SR-mandated — generates SR number)
+# ═══════════════════════════════════════════════════════════════════════════════
 class CreateSRDialog(QDialog):
+    """
+    Admin + Manager + User can open this dialog.
+    Generates a proper SR-XXXX number.
+    """
     def __init__(self, user, parent=None):
         super().__init__(parent)
         self.user = user
         self.setWindowTitle("NEW SERVICE REQUEST")
         self.setObjectName("DialogBox")
-        self.setMinimumWidth(480)
-        self._build_ui()
+        self.setMinimumWidth(500)
+        self._build()
 
-    def _build_ui(self):
+    def _build(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
 
-        title_bar = QLabel("  NEW SERVICE REQUEST")
-        title_bar.setObjectName("DialogTitle")
-        layout.addWidget(title_bar)
+        tb = QLabel("  NEW SERVICE REQUEST")
+        tb.setObjectName("DialogTitle")
+        layout.addWidget(tb)
 
-        form_widget = QWidget()
-        form_widget.setContentsMargins(16, 16, 16, 16)
-        form = QFormLayout(form_widget)
+        fw = QWidget()
+        fw.setContentsMargins(16, 14, 16, 14)
+        form = QFormLayout(fw)
         form.setSpacing(8)
         form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        def lbl(t):
-            l = QLabel(t)
-            l.setObjectName("FormLabel")
-            return l
-
-        self.activity_type = QComboBox()
-        self.activity_type.addItems(["SR Mandatory", "No SR Required"])
-        self.activity_type.currentTextChanged.connect(self._activity_type_changed)
-        form.addRow(lbl("ACTIVITY TYPE"), self.activity_type)
-
-        self.sr_number_input = QLineEdit()
-        self.sr_number_input.setPlaceholderText("Required only for SR Mandatory external activities")
-        form.addRow(lbl("SR NUMBER"), self.sr_number_input)
-
         self.title_input = QLineEdit()
-        self.title_input.setPlaceholderText("Short title for the SR/activity")
-        form.addRow(lbl("TITLE"), self.title_input)
+        self.title_input.setPlaceholderText("Short title for the SR")
+        form.addRow(_lbl("TITLE"), self.title_input)
 
         self.customer_name = QLineEdit()
         self.customer_name.setPlaceholderText("Customer / Client name")
-        form.addRow(lbl("CUSTOMER"), self.customer_name)
+        form.addRow(_lbl("CUSTOMER"), self.customer_name)
 
         self.customer_contact = QLineEdit()
-        self.customer_contact.setPlaceholderText("Phone / Email")
-        form.addRow(lbl("CONTACT"), self.customer_contact)
+        self.customer_contact.setPlaceholderText("Email or phone for mail / WA")
+        form.addRow(_lbl("CONTACT"), self.customer_contact)
+
+        # WA contact picker (live if bridge is up)
+        self.wa_combo = QComboBox()
+        self.wa_combo.addItem("— none —", None)
+        for cid, cname in _wa_contacts():
+            self.wa_combo.addItem(cname, (cid, cname))
+        form.addRow(_lbl("WA RECIPIENT"), self.wa_combo)
 
         self.priority_combo = QComboBox()
         self.priority_combo.addItems(["High", "Medium", "Low"])
         self.priority_combo.setCurrentIndex(1)
-        form.addRow(lbl("PRIORITY"), self.priority_combo)
+        form.addRow(_lbl("PRIORITY"), self.priority_combo)
 
-        # Pipeline
-        self.pipeline_combo = QComboBox()
-        self.pipeline_combo.addItem("-- None --", None)
-        for p in storage.get_pipelines():
-            self.pipeline_combo.addItem(p["name"], p["id"])
-        form.addRow(lbl("PIPELINE"), self.pipeline_combo)
-
-        # Route
         self.route_combo = QComboBox()
         self.route_combo.addItem("-- None --", None)
         for r in storage.get_routes():
-            self.route_combo.addItem(r["name"], r["id"])
-        form.addRow(lbl("ROUTE"), self.route_combo)
+            req = " (requires SR)" if r.get("requires_sr", True) else ""
+            self.route_combo.addItem(r["name"] + req, r["id"])
+        form.addRow(_lbl("ROUTE"), self.route_combo)
 
         self.desc_input = QTextEdit()
-        self.desc_input.setPlaceholderText("Description, issue details, notes...")
+        self.desc_input.setPlaceholderText("Description, issue details…")
         self.desc_input.setFixedHeight(80)
-        form.addRow(lbl("DESCRIPTION"), self.desc_input)
+        form.addRow(_lbl("DESCRIPTION"), self.desc_input)
 
-        layout.addWidget(form_widget)
+        layout.addWidget(fw)
 
-        # Buttons
-        btn_row = QHBoxLayout()
-        btn_row.setContentsMargins(16, 8, 16, 16)
-        btn_row.addStretch()
-        cancel = QPushButton("CANCEL")
-        cancel.clicked.connect(self.reject)
-        btn_row.addWidget(cancel)
-        create = QPushButton("CREATE")
-        create.setObjectName("PrimaryBtn")
-        create.clicked.connect(self._create)
-        btn_row.addWidget(create)
-        layout.addLayout(btn_row)
-
-    def _activity_type_changed(self, value):
-        sr_required = value == "SR Mandatory"
-        self.sr_number_input.setEnabled(sr_required)
-        self.pipeline_combo.setEnabled(sr_required)
-        self.route_combo.setEnabled(sr_required)
+        btns = QHBoxLayout()
+        btns.setContentsMargins(16, 8, 16, 16)
+        btns.addStretch()
+        cancel = QPushButton("CANCEL"); cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        create = QPushButton("CREATE SR")
+        create.setObjectName("PrimaryBtn"); create.clicked.connect(self._create)
+        btns.addWidget(create)
+        layout.addLayout(btns)
 
     def _create(self):
         title = self.title_input.text().strip()
         if not title:
             QMessageBox.warning(self, "Error", "Title is required.")
             return
-        if self.activity_type.currentText() == "No SR Required":
-            storage.create_activity(
-                title=title,
-                description=self.desc_input.toPlainText().strip(),
-                activity_type="No SR Required",
-                created_by=self.user["id"],
-            )
-            self.accept()
-            return
-        if self.sr_number_input.text().strip() and not self.sr_number_input.text().strip().upper().startswith(storage.get_settings().get("sr_prefix", "SR")):
-            QMessageBox.warning(self, "Error", "SR number must use the configured prefix.")
-            return
+
+        wa_data = self.wa_combo.currentData()   # (id, name) or None
         storage.create_sr(
-            title=title,
-            description=self.desc_input.toPlainText().strip(),
-            priority=self.priority_combo.currentText(),
-            pipeline_id=self.pipeline_combo.currentData(),
-            route_id=self.route_combo.currentData(),
-            created_by=self.user["id"],
-            customer_name=self.customer_name.text().strip(),
-            customer_contact=self.customer_contact.text().strip(),
-            activity_type="SR Mandatory",
+            title            = title,
+            description      = self.desc_input.toPlainText().strip(),
+            priority         = self.priority_combo.currentText(),
+            pipeline_id      = None,
+            route_id         = self.route_combo.currentData(),
+            created_by       = self.user["id"],
+            customer_name    = self.customer_name.text().strip(),
+            customer_contact = self.customer_contact.text().strip(),
         )
+        # Attach wa contact to the newly created SR
+        if wa_data:
+            db = storage.load_db()
+            newest = db["sr_entries"][-1] if db.get("sr_entries") else None
+            if newest:
+                newest["wa_contact_id"]   = wa_data[0]
+                newest["wa_contact_name"] = wa_data[1]
+                storage.save_db(db)
+
+        # Fire first route step if route is assigned
+        self._fire_first_step()
         self.accept()
 
+    def _fire_first_step(self):
+        """Auto-fire the first step of the route on SR creation."""
+        try:
+            db     = storage.load_db()
+            sr     = db["sr_entries"][-1]
+            rid    = sr.get("route_id")
+            if not rid:
+                return
+            route  = next((r for r in db.get("routes", []) if r["id"] == rid), None)
+            if not route or not route.get("steps"):
+                return
+            step = route["steps"][0]
+            trigger_step(
+                step,
+                sr,
+                wa_contact_id   = sr.get("wa_contact_id"),
+                wa_contact_name = sr.get("wa_contact_name"),
+            )
+        except Exception as e:
+            print(f"[Route auto-fire error] {e}")
 
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  NO-SR ACTIVITY DIALOG  (no SR number, no route — simple task)
+# ═══════════════════════════════════════════════════════════════════════════════
+class CreateActivityDialog(QDialog):
+    """
+    Any user can create a free-form activity (no SR number generated).
+    Optionally fires a Route that is marked  requires_sr = False.
+    """
+    def __init__(self, user, parent=None):
+        super().__init__(parent)
+        self.user = user
+        self.setWindowTitle("NEW ACTIVITY")
+        self.setObjectName("DialogBox")
+        self.setMinimumWidth(460)
+        self._build()
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+
+        tb = QLabel("  NEW ACTIVITY  (no SR number)")
+        tb.setObjectName("DialogTitle")
+        layout.addWidget(tb)
+
+        fw = QWidget()
+        fw.setContentsMargins(16, 14, 16, 14)
+        form = QFormLayout(fw)
+        form.setSpacing(8)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+
+        self.title_input = QLineEdit()
+        self.title_input.setPlaceholderText("Activity title")
+        form.addRow(_lbl("TITLE"), self.title_input)
+
+        self.contact_input = QLineEdit()
+        self.contact_input.setPlaceholderText("Email or phone (optional)")
+        form.addRow(_lbl("CONTACT"), self.contact_input)
+
+        # Only show routes that do NOT require an SR
+        self.route_combo = QComboBox()
+        self.route_combo.addItem("-- None --", None)
+        for r in storage.get_routes():
+            if not r.get("requires_sr", True):
+                self.route_combo.addItem(r["name"], r["id"])
+        form.addRow(_lbl("ROUTE"), self.route_combo)
+
+        self.desc_input = QTextEdit()
+        self.desc_input.setPlaceholderText("Notes / details…")
+        self.desc_input.setFixedHeight(70)
+        form.addRow(_lbl("NOTES"), self.desc_input)
+
+        layout.addWidget(fw)
+
+        btns = QHBoxLayout()
+        btns.setContentsMargins(16, 8, 16, 16)
+        btns.addStretch()
+        cancel = QPushButton("CANCEL"); cancel.clicked.connect(self.reject)
+        btns.addWidget(cancel)
+        ok = QPushButton("CREATE ACTIVITY")
+        ok.setObjectName("PrimaryBtn"); ok.clicked.connect(self._create)
+        btns.addWidget(ok)
+        layout.addLayout(btns)
+
+        self._saved_activity = None
+
+    def _create(self):
+        title = self.title_input.text().strip()
+        if not title:
+            QMessageBox.warning(self, "Error", "Title is required.")
+            return
+
+        # Store as a lightweight activity (no SR prefix) in activity_logs
+        db  = storage.load_db()
+        act = {
+            "id":          str(uuid.uuid4())[:8].upper(),
+            "type":        "activity",
+            "title":       title,
+            "contact":     self.contact_input.text().strip(),
+            "notes":       self.desc_input.toPlainText().strip(),
+            "route_id":    self.route_combo.currentData(),
+            "created_by":  self.user["id"],
+            "created_at":  _now(),
+            "status":      "Open",
+        }
+        db.setdefault("activities", []).append(act)
+        storage.save_db(db)
+        self._saved_activity = act
+
+        # Fire first route step if a no-SR route is selected
+        rid = act.get("route_id")
+        if rid:
+            route = next((r for r in db.get("routes", []) if r["id"] == rid), None)
+            if route and route.get("steps"):
+                trigger_step(route["steps"][0], act)
+
+        self.accept()
+
+    def get_activity(self):
+        return self._saved_activity
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+#  SR DETAIL PANEL  (right-hand side)
+# ═══════════════════════════════════════════════════════════════════════════════
 class SRDetailPanel(QWidget):
     sr_updated = pyqtSignal()
 
     def __init__(self, user):
         super().__init__()
-        self.user = user
+        self.user       = user
         self.current_sr = None
-        self._build_ui()
+        self._build()
 
-    def _build_ui(self):
+    def _build(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
-
-        hdr = QLabel("  SR DETAILS")
-        hdr.setStyleSheet("color:#555; font-size:9px; letter-spacing:2px; padding:6px 0; border-bottom:1px solid #1E1E28;")
-        layout.addWidget(hdr)
+        layout.addWidget(_section("SR DETAILS"))
 
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.Shape.NoFrame)
 
         self.inner = QWidget()
-        inner_layout = QVBoxLayout(self.inner)
-        inner_layout.setContentsMargins(10, 10, 10, 10)
-        inner_layout.setSpacing(6)
+        il = QVBoxLayout(self.inner)
+        il.setContentsMargins(10, 10, 10, 10)
+        il.setSpacing(6)
 
-        # SR info section
-        self.sr_number_lbl = QLabel("Select an SR")
-        self.sr_number_lbl.setStyleSheet("color:#00D4AA; font-size:14px; font-weight:bold;")
-        inner_layout.addWidget(self.sr_number_lbl)
+        # Info grid
+        info_frame = QFrame()
+        info_frame.setObjectName("StatCard")
+        info_grid = QFormLayout(info_frame)
+        info_grid.setSpacing(5)
+        info_grid.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
 
-        self.title_lbl = QLabel("")
-        self.title_lbl.setStyleSheet("color:#D4D4D4; font-size:12px;")
-        self.title_lbl.setWordWrap(True)
-        inner_layout.addWidget(self.title_lbl)
+        def _info_row(label):
+            lbl_w = _lbl(label)
+            val_w = QLabel("—")
+            info_grid.addRow(lbl_w, val_w)
+            return val_w
 
-        # Status row
-        status_row = QHBoxLayout()
-        self.status_lbl = QLabel("")
-        self.status_lbl.setStyleSheet("font-size:10px;")
-        self.priority_lbl = QLabel("")
-        self.priority_lbl.setStyleSheet("font-size:10px;")
-        status_row.addWidget(self.status_lbl)
-        status_row.addWidget(self.priority_lbl)
-        status_row.addStretch()
-        inner_layout.addLayout(status_row)
+        self.lbl_id       = _info_row("SR NUMBER")
+        self.lbl_title    = _info_row("TITLE")
+        self.lbl_customer = _info_row("CUSTOMER")
+        self.lbl_contact  = _info_row("CONTACT")
+        self.lbl_priority = _info_row("PRIORITY")
+        self.lbl_status   = _info_row("STATUS")
+        self.lbl_route    = _info_row("ROUTE")
+        self.lbl_step     = _info_row("CURRENT STEP")
+        self.lbl_created  = _info_row("CREATED")
+        il.addWidget(info_frame)
 
-        # Meta info
-        self.meta_lbl = QLabel("")
-        self.meta_lbl.setStyleSheet("color:#555; font-size:10px;")
-        self.meta_lbl.setWordWrap(True)
-        inner_layout.addWidget(self.meta_lbl)
+        # Route step progress
+        step_frame = QFrame()
+        step_frame.setObjectName("StatCard")
+        sl = QVBoxLayout(step_frame)
+        sl.addWidget(_section("ROUTE PROGRESS"))
+        self.step_table = QTableWidget()
+        self.step_table.setColumnCount(3)
+        self.step_table.setHorizontalHeaderLabels(["#", "STEP", "STATUS"])
+        self.step_table.setColumnWidth(0, 30)
+        self.step_table.setColumnWidth(1, 160)
+        self.step_table.horizontalHeader().setStretchLastSection(True)
+        self.step_table.verticalHeader().setVisible(False)
+        self.step_table.setFixedHeight(140)
+        self.step_table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.step_table.setAlternatingRowColors(True)
+        self.step_table.setStyleSheet("alternate-background-color: #13131A;")
+        sl.addWidget(self.step_table)
 
-        self.desc_lbl = QLabel("")
-        self.desc_lbl.setStyleSheet("color:#888; font-size:11px; background:#111116; padding:6px; border:1px solid #1E1E28;")
-        self.desc_lbl.setWordWrap(True)
-        inner_layout.addWidget(self.desc_lbl)
+        adv_row = QHBoxLayout()
+        adv_row.addStretch()
+        self.adv_btn = QPushButton("▶  ADVANCE TO NEXT STEP")
+        self.adv_btn.setObjectName("PrimaryBtn")
+        self.adv_btn.clicked.connect(self._advance_step)
+        adv_row.addWidget(self.adv_btn)
+        sl.addLayout(adv_row)
+        il.addWidget(step_frame)
 
-        # Action buttons
-        sep1 = QFrame(); sep1.setFrameShape(QFrame.Shape.HLine)
-        sep1.setStyleSheet("color:#1E1E28;"); inner_layout.addWidget(sep1)
-
-        action_grid = QHBoxLayout()
-        action_grid.setSpacing(4)
-        self.btn_inprog = QPushButton("▶ IN PROGRESS")
-        self.btn_inprog.clicked.connect(lambda: self._set_status("In Progress"))
-        action_grid.addWidget(self.btn_inprog)
-
-        self.btn_advance = QPushButton("→ ADVANCE STAGE")
-        self.btn_advance.clicked.connect(self._advance_stage)
-        action_grid.addWidget(self.btn_advance)
-
-        inner_layout.addLayout(action_grid)
-
-        action_grid2 = QHBoxLayout()
-        action_grid2.setSpacing(4)
-        self.btn_close = QPushButton("✓ CLOSE SR")
-        self.btn_close.setObjectName("PrimaryBtn")
-        self.btn_close.clicked.connect(self._close_sr)
-        action_grid2.addWidget(self.btn_close)
-
-        self.btn_reopen = QPushButton("↩ REOPEN")
-        self.btn_reopen.setObjectName("WarningBtn")
-        self.btn_reopen.clicked.connect(lambda: self._set_status("Open"))
-        action_grid2.addWidget(self.btn_reopen)
-        inner_layout.addLayout(action_grid2)
-
-        # Assign to
-        sep2 = QFrame(); sep2.setFrameShape(QFrame.Shape.HLine)
-        sep2.setStyleSheet("color:#1E1E28;"); inner_layout.addWidget(sep2)
-
-        assign_row = QHBoxLayout()
-        assign_lbl = QLabel("ASSIGN TO")
-        assign_lbl.setObjectName("FormLabel")
-        assign_row.addWidget(assign_lbl)
-        self.assign_combo = QComboBox()
-        self._refresh_users()
-        assign_row.addWidget(self.assign_combo)
-        btn_assign = QPushButton("SET")
-        btn_assign.clicked.connect(self._assign)
-        assign_row.addWidget(btn_assign)
-        inner_layout.addLayout(assign_row)
-
-        # Stage history
-        self.stage_lbl = QLabel("")
-        self.stage_lbl.setStyleSheet("color:#555; font-size:10px;")
-        inner_layout.addWidget(self.stage_lbl)
-
-        # Comment section
-        sep3 = QFrame(); sep3.setFrameShape(QFrame.Shape.HLine)
-        sep3.setStyleSheet("color:#1E1E28;"); inner_layout.addWidget(sep3)
-
-        comment_lbl = QLabel("ADD COMMENT")
-        comment_lbl.setObjectName("FormLabel")
-        inner_layout.addWidget(comment_lbl)
-
+        # Comment
+        comm_frame = QFrame()
+        comm_frame.setObjectName("StatCard")
+        cl = QVBoxLayout(comm_frame)
+        cl.addWidget(_section("ADD COMMENT"))
         self.comment_input = QTextEdit()
-        self.comment_input.setFixedHeight(50)
-        self.comment_input.setPlaceholderText("Type comment here...")
-        inner_layout.addWidget(self.comment_input)
+        self.comment_input.setFixedHeight(60)
+        self.comment_input.setPlaceholderText("Type a comment…")
+        cl.addWidget(self.comment_input)
+        comm_row = QHBoxLayout()
+        comm_row.addStretch()
+        comm_btn = QPushButton("POST COMMENT")
+        comm_btn.clicked.connect(self._post_comment)
+        comm_row.addWidget(comm_btn)
+        cl.addLayout(comm_row)
+        il.addWidget(comm_frame)
 
-        btn_comment = QPushButton("POST COMMENT")
-        btn_comment.clicked.connect(self._add_comment)
-        inner_layout.addWidget(btn_comment)
+        # Close SR
+        role = self.user.get("role", "")
+        if role in ("Admin", "Manager", "Technical"):
+            close_frame = QFrame()
+            close_frame.setObjectName("StatCard")
+            kl = QHBoxLayout(close_frame)
+            kl.addStretch()
+            close_btn = QPushButton("✓  CLOSE SR")
+            close_btn.setObjectName("DangerBtn")
+            close_btn.clicked.connect(self._close_sr)
+            kl.addWidget(close_btn)
+            il.addWidget(close_frame)
 
-        # Comments display
-        self.comments_widget = QWidget()
-        self.comments_layout = QVBoxLayout(self.comments_widget)
-        self.comments_layout.setContentsMargins(0, 0, 0, 0)
-        self.comments_layout.setSpacing(2)
-        inner_layout.addWidget(self.comments_widget)
-
-        inner_layout.addStretch()
+        il.addStretch()
         scroll.setWidget(self.inner)
-        layout.addWidget(scroll)
+        layout.addWidget(scroll, 1)
 
-    def _refresh_users(self):
-        self.assign_combo.clear()
-        self.assign_combo.addItem("-- Unassigned --", None)
-        for u in storage.get_users():
-            if u["status"] == "active":
-                self.assign_combo.addItem(f"{u['name']} ({u['role']})", u["id"])
-
-    def load_sr(self, sr):
+    # ── load ──────────────────────────────────────────────────────────────────
+    def load_sr(self, sr: dict):
         self.current_sr = sr
-        self.sr_number_lbl.setText(sr["sr_number"])
-        self.title_lbl.setText(sr["title"])
+        db = storage.load_db()
 
-        sc = STATUS_COLORS.get(sr["status"], "#888")
-        self.status_lbl.setText(f"● {sr['status']}")
-        self.status_lbl.setStyleSheet(f"color:{sc}; font-size:10px;")
+        self.lbl_id.setText(sr.get("sr_number", sr.get("id", "—")))
+        self.lbl_title.setText(sr.get("title", "—"))
+        self.lbl_customer.setText(sr.get("customer_name", "—"))
+        self.lbl_contact.setText(sr.get("customer_contact", "—"))
 
-        pc = PRIORITY_COLORS.get(sr.get("priority", "Medium"), "#888")
-        self.priority_lbl.setText(f"[{sr.get('priority','Medium')}]")
-        self.priority_lbl.setStyleSheet(f"color:{pc}; font-size:10px;")
+        pri = sr.get("priority", "—")
+        self.lbl_priority.setText(pri)
+        self.lbl_priority.setStyleSheet(f"color:{PRIORITY_COLORS.get(pri,'#888')};")
 
-        meta = f"Type: {sr.get('activity_type', 'SR Mandatory')}  |  Created: {sr['created_at'][:16]}  |  Stage: {sr['current_stage']}"
-        if sr.get("customer_name"):
-            meta += f"\nCustomer: {sr['customer_name']}"
-            if sr.get("customer_contact"):
-                meta += f"  |  {sr['customer_contact']}"
-        if sr.get("assigned_to"):
-            meta += f"\nAssigned: {sr['assigned_to']}"
-        self.meta_lbl.setText(meta)
+        sta = sr.get("status", "—")
+        self.lbl_status.setText(sta)
+        self.lbl_status.setStyleSheet(f"color:{STATUS_COLORS.get(sta,'#888')};")
 
-        desc = sr.get("description", "")
-        self.desc_lbl.setText(desc if desc else "(no description)")
+        self.lbl_created.setText(sr.get("created_at", "—")[:16])
 
-        # Stage history
-        hist = sr.get("stage_history", [])
-        if hist:
-            self.stage_lbl.setText("Stage history: " + " → ".join([f"S{h['stage']}" for h in hist]))
-        else:
-            self.stage_lbl.setText("No stage transitions yet")
+        # Route info
+        rid = sr.get("route_id")
+        route = next((r for r in db.get("routes", []) if r["id"] == rid), None) if rid else None
+        self.lbl_route.setText(route["name"] if route else "—")
 
-        # Comments
-        for i in reversed(range(self.comments_layout.count())):
-            w = self.comments_layout.itemAt(i).widget()
-            if w:
-                w.deleteLater()
+        # Step progress
+        steps = route.get("steps", []) if route else []
+        cur   = sr.get("current_step", 0)
+        self.lbl_step.setText(steps[cur]["name"] if steps and cur < len(steps) else "—")
 
-        for c in sr.get("comments", []):
-            c_lbl = QLabel(f"  {c['at'][11:16]}  {c['by']}: {c['text']}")
-            c_lbl.setStyleSheet("color:#666; font-size:10px; padding:2px 0; border-bottom:1px solid #1A1A22;")
-            c_lbl.setWordWrap(True)
-            self.comments_layout.addWidget(c_lbl)
+        self.step_table.setRowCount(len(steps))
+        for i, s in enumerate(steps):
+            self.step_table.setRowHeight(i, 22)
+            self.step_table.setItem(i, 0, QTableWidgetItem(str(i + 1)))
+            self.step_table.setItem(i, 1, QTableWidgetItem(s["name"]))
+            if i < cur:
+                sta_item = QTableWidgetItem("✓ Done")
+                sta_item.setForeground(QColor("#00D4AA"))
+            elif i == cur:
+                sta_item = QTableWidgetItem("→ Current")
+                sta_item.setForeground(QColor("#D4A800"))
+            else:
+                sta_item = QTableWidgetItem("Pending")
+                sta_item.setForeground(QColor("#444"))
+            self.step_table.setItem(i, 2, sta_item)
 
-        is_closed = sr["status"] == "Closed"
-        self.btn_close.setEnabled(not is_closed)
-        self.btn_inprog.setEnabled(not is_closed)
-        self.btn_advance.setEnabled(not is_closed)
-        self.btn_reopen.setEnabled(is_closed)
+        # Disable advance if closed or no route
+        is_closed = sr.get("status") == "Closed"
+        self.adv_btn.setEnabled(bool(steps) and not is_closed and cur < len(steps))
 
-    def _set_status(self, status):
+    # ── actions ───────────────────────────────────────────────────────────────
+    def _advance_step(self):
         if not self.current_sr:
             return
-        storage.update_sr(self.current_sr["id"], status=status)
-        storage.log_activity("SR_UPDATE", f"SR {self.current_sr['sr_number']} → {status}", self.user["id"])
+        db    = storage.load_db()
+        sr    = next((x for x in db["sr_entries"]
+                      if x["id"] == self.current_sr["id"]), None)
+        if not sr:
+            return
+
+        rid   = sr.get("route_id")
+        route = next((r for r in db.get("routes", []) if r["id"] == rid), None) if rid else None
+        steps = route.get("steps", []) if route else []
+        cur   = sr.get("current_step", 0)
+
+        if cur >= len(steps):
+            QMessageBox.information(self, "Complete", "All route steps are done.")
+            return
+
+        # Fire the CURRENT step triggers
+        trigger_step(
+            steps[cur], sr,
+            wa_contact_id   = sr.get("wa_contact_id"),
+            wa_contact_name = sr.get("wa_contact_name"),
+        )
+
+        # Advance
+        sr["current_step"]  = cur + 1
+        sr["updated_at"]    = _now()
+        if sr["current_step"] >= len(steps):
+            sr["status"] = "In Progress"   # optionally auto-close here
+
+        storage.save_db(db)
+        self.current_sr = sr
+        self.load_sr(sr)
+        self.sr_updated.emit()
+
+    def _post_comment(self):
+        if not self.current_sr:
+            return
+        txt = self.comment_input.toPlainText().strip()
+        if not txt:
+            return
+        storage.add_comment(self.current_sr["id"], self.user["id"], txt)
+        self.comment_input.clear()
         self.sr_updated.emit()
 
     def _close_sr(self):
         if not self.current_sr:
             return
-        r = QMessageBox.question(self, "Close SR", f"Close {self.current_sr['sr_number']}?",
-                                  QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if r == QMessageBox.StandardButton.Yes:
+        if QMessageBox.question(
+            self, "Close SR",
+            f"Close SR {self.current_sr.get('sr_number', '')}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        ) == QMessageBox.StandardButton.Yes:
             storage.close_sr(self.current_sr["id"], self.user["id"])
             self.sr_updated.emit()
 
-    def _advance_stage(self):
-        if not self.current_sr:
-            return
-        storage.advance_sr_stage(self.current_sr["id"], self.user["id"])
-        self.sr_updated.emit()
 
-    def _assign(self):
-        if not self.current_sr:
-            return
-        uid = self.assign_combo.currentData()
-        storage.update_sr(self.current_sr["id"], assigned_to=uid)
-        storage.log_activity("SR_ASSIGN", f"SR {self.current_sr['sr_number']} assigned", self.user["id"])
-        self.sr_updated.emit()
+# ═══════════════════════════════════════════════════════════════════════════════
+#  ACTIVITY DETAIL PANEL (for no-SR activities)
+# ═══════════════════════════════════════════════════════════════════════════════
+class ActivityDetailPanel(QWidget):
+    updated = pyqtSignal()
 
-    def _add_comment(self):
-        if not self.current_sr:
+    def __init__(self, user):
+        super().__init__()
+        self.user    = user
+        self.current = None
+        self._build()
+
+    def _build(self):
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.addWidget(_section("ACTIVITY DETAILS"))
+
+        self.lbl_title   = QLabel("—")
+        self.lbl_contact = QLabel("—")
+        self.lbl_status  = QLabel("—")
+        self.lbl_notes   = QLabel("—")
+        self.lbl_notes.setWordWrap(True)
+        self.lbl_created = QLabel("—")
+
+        frame = QFrame()
+        frame.setObjectName("StatCard")
+        fl = QFormLayout(frame)
+        fl.setSpacing(5)
+        fl.setLabelAlignment(Qt.AlignmentFlag.AlignRight)
+        fl.addRow(_lbl("TITLE"),   self.lbl_title)
+        fl.addRow(_lbl("CONTACT"), self.lbl_contact)
+        fl.addRow(_lbl("STATUS"),  self.lbl_status)
+        fl.addRow(_lbl("NOTES"),   self.lbl_notes)
+        fl.addRow(_lbl("CREATED"), self.lbl_created)
+        layout.addWidget(frame)
+
+        # Close activity button
+        btn_row = QHBoxLayout()
+        btn_row.addStretch()
+        self.close_btn = QPushButton("✓  MARK DONE")
+        self.close_btn.setObjectName("PrimaryBtn")
+        self.close_btn.clicked.connect(self._close_activity)
+        btn_row.addWidget(self.close_btn)
+        layout.addLayout(btn_row)
+        layout.addStretch()
+
+    def load_activity(self, act: dict):
+        self.current = act
+        self.lbl_title.setText(act.get("title", "—"))
+        self.lbl_contact.setText(act.get("contact", "—") or "—")
+        self.lbl_status.setText(act.get("status", "—"))
+        self.lbl_notes.setText(act.get("notes", "—") or "—")
+        self.lbl_created.setText(act.get("created_at", "—")[:16])
+        self.close_btn.setEnabled(act.get("status") != "Closed")
+
+    def _close_activity(self):
+        if not self.current:
             return
-        text = self.comment_input.toPlainText().strip()
-        if not text:
-            return
-        storage.add_comment(self.current_sr["id"], self.user["id"], text)
-        self.comment_input.clear()
-        self.sr_updated.emit()
+        db = storage.load_db()
+        for a in db.get("activities", []):
+            if a["id"] == self.current["id"]:
+                a["status"]     = "Closed"
+                a["updated_at"] = _now()
+                break
+        storage.save_db(db)
+        self.current["status"] = "Closed"
+        self.load_activity(self.current)
+        self.updated.emit()
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+#  MAIN SR PAGE
+# ═══════════════════════════════════════════════════════════════════════════════
 class SRPage(QWidget):
     def __init__(self, user):
         super().__init__()
         self.user = user
-        self._build_ui()
-        self._load_sr()
+        self._build()
+        self._load()
 
-    def _build_ui(self):
+    def _build(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(14, 10, 14, 10)
-        layout.setSpacing(8)
+        layout.setSpacing(10)
 
-        # Toolbar
-        toolbar = QHBoxLayout()
+        # Header
+        hdr = QHBoxLayout()
         title = QLabel("SERVICE REQUESTS")
         title.setObjectName("PageTitle")
-        toolbar.addWidget(title)
-        toolbar.addStretch()
+        hdr.addWidget(title)
+        hdr.addStretch()
 
-        self.search_bar = QLineEdit()
-        self.search_bar.setObjectName("SearchBar")
-        self.search_bar.setPlaceholderText("Search SR#, title, customer...")
-        self.search_bar.textChanged.connect(self._filter)
-        toolbar.addWidget(self.search_bar)
+        # All roles can create
+        self.new_sr_btn = QPushButton("+ NEW SR")
+        self.new_sr_btn.clicked.connect(self._new_sr)
+        hdr.addWidget(self.new_sr_btn)
 
-        self.filter_combo = QComboBox()
-        self.filter_combo.addItems(["All Status", "Open", "In Progress", "Closed", "Pending"])
-        self.filter_combo.currentTextChanged.connect(self._filter)
-        toolbar.addWidget(self.filter_combo)
+        self.new_act_btn = QPushButton("+ ACTIVITY (no SR)")
+        self.new_act_btn.clicked.connect(self._new_activity)
+        hdr.addWidget(self.new_act_btn)
 
-        self.priority_filter = QComboBox()
-        self.priority_filter.addItems(["All Priority", "High", "Medium", "Low"])
-        self.priority_filter.currentTextChanged.connect(self._filter)
-        toolbar.addWidget(self.priority_filter)
+        layout.addLayout(hdr)
 
-        btn_new = QPushButton("+ NEW SR")
-        btn_new.setObjectName("PrimaryBtn")
-        btn_new.clicked.connect(self._new_sr)
-        toolbar.addWidget(btn_new)
+        # Tabs: SR | Activities
+        self.tabs = QTabWidget()
 
-        layout.addLayout(toolbar)
+        # ── Tab 1: SR ──
+        sr_tab = QWidget()
+        sr_layout = QVBoxLayout(sr_tab)
+        sr_layout.setContentsMargins(0, 6, 0, 0)
+        sr_layout.setSpacing(4)
 
-        # Splitter
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        sr_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # SR Table
-        self.table = QTableWidget()
-        self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(["SR#", "TYPE", "TITLE", "CUSTOMER", "PRIORITY", "STATUS", "CREATED"])
-        self.table.setColumnWidth(0, 85)
-        self.table.setColumnWidth(1, 180)
-        self.table.setColumnWidth(2, 110)
-        self.table.setColumnWidth(3, 75)
-        self.table.setColumnWidth(4, 80)
-        self.table.setColumnWidth(5, 88)
-        self.table.horizontalHeader().setStretchLastSection(True)
-        self.table.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        self.table.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table.verticalHeader().setVisible(False)
-        self.table.setAlternatingRowColors(True)
-        self.table.setStyleSheet("alternate-background-color: #13131A;")
-        self.table.itemSelectionChanged.connect(self._on_select)
-        splitter.addWidget(self.table)
+        # SR list
+        sr_list_frame = QFrame()
+        sr_list_frame.setObjectName("StatCard")
+        sll = QVBoxLayout(sr_list_frame)
+        sll.setContentsMargins(0, 0, 0, 0)
+        sll.addWidget(_section("ALL SERVICE REQUESTS"))
 
-        # Detail panel
-        self.detail_panel = SRDetailPanel(self.user)
-        self.detail_panel.sr_updated.connect(self._load_sr)
-        splitter.addWidget(self.detail_panel)
+        self.search_sr = QLineEdit()
+        self.search_sr.setPlaceholderText("Search SR…")
+        self.search_sr.textChanged.connect(self._filter_sr)
+        self.search_sr.setContentsMargins(6, 4, 6, 4)
+        sll.addWidget(self.search_sr)
 
-        splitter.setSizes([560, 300])
-        layout.addWidget(splitter)
+        self.sr_table = self._make_sr_table(
+            ["SR#", "TITLE", "CUSTOMER", "PRIORITY", "STATUS", "CREATED"])
+        self.sr_table.itemSelectionChanged.connect(self._on_sr_select)
+        sll.addWidget(self.sr_table)
+        sr_splitter.addWidget(sr_list_frame)
 
-        # Status bar
-        self.status_lbl = QLabel("0 records")
-        self.status_lbl.setStyleSheet("color:#555; font-size:10px;")
-        layout.addWidget(self.status_lbl)
+        # SR detail
+        self.sr_detail = SRDetailPanel(self.user)
+        self.sr_detail.sr_updated.connect(self._load)
+        sr_splitter.addWidget(self.sr_detail)
+        sr_splitter.setSizes([480, 380])
 
-        self.all_sr = []
+        sr_layout.addWidget(sr_splitter)
+        self.tabs.addTab(sr_tab, "📋  SERVICE REQUESTS")
 
-    def _load_sr(self):
-        self.all_sr = storage.get_sr_by_user(self.user["id"], self.user["role"])
-        self.all_sr = sorted(self.all_sr, key=lambda x: x["created_at"], reverse=True)
-        self._render(self.all_sr)
+        # ── Tab 2: Activities ──
+        act_tab = QWidget()
+        act_layout = QVBoxLayout(act_tab)
+        act_layout.setContentsMargins(0, 6, 0, 0)
 
-        # Reload selected if any
-        if self.detail_panel.current_sr:
-            updated = next((s for s in self.all_sr if s["id"] == self.detail_panel.current_sr["id"]), None)
-            if updated:
-                self.detail_panel.load_sr(updated)
+        act_splitter = QSplitter(Qt.Orientation.Horizontal)
+
+        act_list_frame = QFrame()
+        act_list_frame.setObjectName("StatCard")
+        all = QVBoxLayout(act_list_frame)
+        all.setContentsMargins(0, 0, 0, 0)
+        all.addWidget(_section("ACTIVITIES (NO SR NUMBER)"))
+
+        self.act_table = self._make_sr_table(
+            ["ID", "TITLE", "CONTACT", "STATUS", "CREATED"])
+        self.act_table.itemSelectionChanged.connect(self._on_act_select)
+        all.addWidget(self.act_table)
+        act_splitter.addWidget(act_list_frame)
+
+        self.act_detail = ActivityDetailPanel(self.user)
+        self.act_detail.updated.connect(self._load)
+        act_splitter.addWidget(self.act_detail)
+        act_splitter.setSizes([480, 380])
+
+        act_layout.addWidget(act_splitter)
+        self.tabs.addTab(act_tab, "⚡  ACTIVITIES")
+
+        layout.addWidget(self.tabs, 1)
+
+        self._sr_data  = []
+        self._act_data = []
+
+        # ── test-compatibility aliases ─────────────────────────────────────
+        self.table      = self.sr_table
+        self.search_bar = self.search_sr
+
+    @staticmethod
+    def _make_sr_table(headers):
+        t = QTableWidget()
+        t.setColumnCount(len(headers))
+        t.setHorizontalHeaderLabels(headers)
+        t.horizontalHeader().setStretchLastSection(True)
+        t.verticalHeader().setVisible(False)
+        t.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        t.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        t.setAlternatingRowColors(True)
+        t.setStyleSheet("alternate-background-color: #13131A;")
+        return t
+
+    # ── data ──────────────────────────────────────────────────────────────────
+    def _load(self):
+        role = self.user.get("role", "")
+        if role in ("Admin", "Manager", "Technical"):
+            srs = storage.get_all_sr()
+        else:
+            srs = storage.get_sr_by_user(self.user["id"], role)
+        self._sr_data = srs
+        self._render_sr(srs)
+
+        db = storage.load_db()
+        acts = db.get("activities", [])
+        if role not in ("Admin", "Manager"):
+            acts = [a for a in acts if a.get("created_by") == self.user["id"]]
+        self._act_data = acts
+        self._render_acts(acts)
+
+    def _render_sr(self, srs):
+        self.sr_table.setRowCount(len(srs))
+        for i, sr in enumerate(srs):
+            self.sr_table.setRowHeight(i, 22)
+            vals = [
+                sr.get("sr_number", ""),
+                sr.get("title", ""),
+                sr.get("customer_name", ""),
+                sr.get("priority", ""),
+                sr.get("status", ""),
+                sr.get("created_at", "")[:10],
+            ]
+            for j, v in enumerate(vals):
+                item = QTableWidgetItem(v)
+                if j == 3 and v in PRIORITY_COLORS:
+                    item.setForeground(QColor(PRIORITY_COLORS[v]))
+                if j == 4 and v in STATUS_COLORS:
+                    item.setForeground(QColor(STATUS_COLORS[v]))
+                self.sr_table.setItem(i, j, item)
+
+    def _render_acts(self, acts):
+        self.act_table.setRowCount(len(acts))
+        for i, a in enumerate(acts):
+            self.act_table.setRowHeight(i, 22)
+            sta = a.get("status", "")
+            vals = [
+                a.get("id", ""),
+                a.get("title", ""),
+                a.get("contact", ""),
+                sta,
+                a.get("created_at", "")[:10],
+            ]
+            for j, v in enumerate(vals):
+                item = QTableWidgetItem(v)
+                if j == 3:
+                    item.setForeground(QColor(
+                        "#00D4AA" if sta == "Closed" else "#D4A800"))
+                self.act_table.setItem(i, j, item)
 
     def _filter(self):
-        query = self.search_bar.text().strip().lower()
-        status_f = self.filter_combo.currentText()
-        priority_f = self.priority_filter.currentText()
+        """Alias for test compatibility — filters using current search_bar text."""
+        self._filter_sr(self.search_sr.text())
 
-        filtered = self.all_sr
-        if query:
-            filtered = [s for s in filtered if
-                        query in s["sr_number"].lower() or
-                        query in s["title"].lower() or
-                        query in s.get("customer_name", "").lower()]
-        if status_f != "All Status":
-            filtered = [s for s in filtered if s["status"] == status_f]
-        if priority_f != "All Priority":
-            filtered = [s for s in filtered if s.get("priority") == priority_f]
+    def _filter_sr(self, txt):
+        q = txt.lower()
+        filtered = [sr for sr in self._sr_data
+                    if q in sr.get("title", "").lower()
+                    or q in sr.get("sr_number", "").lower()
+                    or q in sr.get("customer_name", "").lower()]
+        self._render_sr(filtered)
 
-        self._render(filtered)
+    # ── selection ─────────────────────────────────────────────────────────────
+    def _on_sr_select(self):
+        row = self.sr_table.currentRow()
+        if 0 <= row < len(self._sr_data):
+            self.sr_detail.load_sr(self._sr_data[row])
 
-    def _render(self, srs):
-        self.table.setRowCount(len(srs))
-        for row, sr in enumerate(srs):
-            self.table.setRowHeight(row, 22)
-            pr_color = PRIORITY_COLORS.get(sr.get("priority", "Medium"), "#888")
-            st_color = STATUS_COLORS.get(sr["status"], "#888")
+    def _on_act_select(self):
+        row = self.act_table.currentRow()
+        if 0 <= row < len(self._act_data):
+            self.act_detail.load_activity(self._act_data[row])
 
-            items = [
-                (sr["sr_number"], "#00D4AA"),
-                (sr.get("activity_type", "SR Mandatory").replace(" Required", ""), "#D4A800" if sr.get("activity_type") == "No SR Required" else "#777"),
-                (sr["title"][:28], "#C0C0C0"),
-                (sr.get("customer_name", "")[:18], "#888"),
-                (sr.get("priority", "Medium"), pr_color),
-                (sr["status"], st_color),
-                (sr["created_at"][:10], "#555"),
-            ]
-            for col, (val, color) in enumerate(items):
-                item = QTableWidgetItem(val)
-                item.setData(Qt.ItemDataRole.UserRole, sr["id"])
-                item.setForeground(QColor(color))
-                self.table.setItem(row, col, item)
-
-        self.status_lbl.setText(f"{len(srs)} records")
-
-    def _on_select(self):
-        row = self.table.currentRow()
-        if row < 0:
-            return
-        sr_id = self.table.item(row, 0).data(Qt.ItemDataRole.UserRole)
-        sr = next((s for s in self.all_sr if s["id"] == sr_id), None)
-        if sr:
-            self.detail_panel.load_sr(sr)
-
+    # ── create ────────────────────────────────────────────────────────────────
     def _new_sr(self):
-        dlg = CreateSRDialog(self.user, self)
+        dlg = CreateSRDialog(self.user, parent=self)
         if dlg.exec():
-            self._load_sr()
+            self._load()
+
+    def _new_activity(self):
+        dlg = CreateActivityDialog(self.user, parent=self)
+        if dlg.exec():
+            self._load()

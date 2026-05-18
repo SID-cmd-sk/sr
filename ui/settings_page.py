@@ -20,7 +20,6 @@ _ROOT = _Path(__file__).resolve().parent.parent
 if str(_ROOT) not in _sys.path:
     _sys.path.insert(0, str(_ROOT))
 from core import storage
-import email_sender
 
 
 class SettingsPage(QWidget):
@@ -42,13 +41,10 @@ class SettingsPage(QWidget):
         layout.addWidget(self.tabs)
 
         self._build_general_tab()
-        self._build_email_tab()
-        self._build_report_tab()
+        self._build_roles_tab()
         self._build_log_tab()
-        if self.user.get("role") == "Admin":
-            self._build_roles_tab()
-            self._build_backup_tab()
-            self._build_db_tab()
+        self._build_backup_tab()
+        self._build_db_tab()
 
     # ── GENERAL ──────────────────────────────────────────────────────────────
     def _build_general_tab(self):
@@ -108,59 +104,6 @@ class SettingsPage(QWidget):
         )
         storage.log_activity("SETTINGS_SAVE", "General settings updated", self.user["id"])
         QMessageBox.information(self, "Saved", "Settings saved successfully.")
-
-
-    # ── EMAIL SETUP ──────────────────────────────────────────────────────────
-    def _build_email_tab(self):
-        tab = QWidget(); tl = QVBoxLayout(tab); tl.setContentsMargins(14, 14, 14, 14); tl.setSpacing(10)
-        cfg = storage.get_email_settings()
-        def row(label, widget):
-            r = QHBoxLayout(); lbl = QLabel(label); lbl.setObjectName("FormLabel"); lbl.setFixedWidth(160); r.addWidget(lbl); r.addWidget(widget); tl.addLayout(r)
-        self.email_sender_input = QLineEdit(cfg.get("sender_email", "")); row("SENDER EMAIL", self.email_sender_input)
-        self.email_password_input = QLineEdit(cfg.get("password", "")); self.email_password_input.setEchoMode(QLineEdit.EchoMode.Password); row("APP PASSWORD", self.email_password_input)
-        self.email_host_input = QLineEdit(cfg.get("smtp_host", "smtp.gmail.com")); row("SMTP HOST", self.email_host_input)
-        self.email_port_input = QLineEdit(str(cfg.get("smtp_port", 465))); row("SMTP PORT", self.email_port_input)
-        self.email_ssl_cb = QCheckBox("Use SSL"); self.email_ssl_cb.setChecked(cfg.get("use_ssl", True)); row("SSL", self.email_ssl_cb)
-        self.email_tls_cb = QCheckBox("Use STARTTLS"); self.email_tls_cb.setChecked(cfg.get("use_tls", False)); row("TLS", self.email_tls_cb)
-        self.email_display_input = QLineEdit(cfg.get("display_name", "")); row("DISPLAY NAME", self.email_display_input)
-        self.email_test_input = QLineEdit(); self.email_test_input.setPlaceholderText("recipient@example.com"); row("TEST RECIPIENT", self.email_test_input)
-        btns = QHBoxLayout(); save = QPushButton("SAVE EMAIL SETTINGS"); save.setObjectName("PrimaryBtn"); save.clicked.connect(self._save_email); btns.addWidget(save); test = QPushButton("SEND TEST EMAIL"); test.clicked.connect(self._test_email); btns.addWidget(test); btns.addStretch(); tl.addLayout(btns); tl.addStretch()
-        self.tabs.addTab(tab, "✉  EMAIL SETUP")
-
-    def _email_cfg_from_ui(self):
-        return {"sender_email": self.email_sender_input.text().strip(), "password": self.email_password_input.text(),
-                "smtp_host": self.email_host_input.text().strip() or "smtp.gmail.com", "smtp_port": int(self.email_port_input.text() or 465),
-                "use_ssl": self.email_ssl_cb.isChecked(), "use_tls": self.email_tls_cb.isChecked(),
-                "display_name": self.email_display_input.text().strip()}
-
-    def _save_email(self):
-        try: cfg = self._email_cfg_from_ui()
-        except ValueError: QMessageBox.warning(self, "Error", "SMTP port must be numeric."); return
-        storage.update_email_settings(cfg); storage.log_activity("EMAIL_SETTINGS", "Email settings updated", self.user["id"]); QMessageBox.information(self, "Saved", "Email settings saved.")
-
-    def _test_email(self):
-        try: cfg = self._email_cfg_from_ui()
-        except ValueError: QMessageBox.warning(self, "Error", "SMTP port must be numeric."); return
-        storage.update_email_settings(cfg)
-        result = email_sender.send_email(cfg, self.email_test_input.text().strip(), "SR Manager test email", "This is a test email from SR Manager.")
-        storage.log_communication("email", self.email_test_input.text().strip(), "TEST", "SR Manager test email", "This is a test email from SR Manager.", result.get("success"), result.get("error", ""), self.user["id"])
-        if result.get("success"): QMessageBox.information(self, "Sent", "Test email sent successfully.")
-        else: QMessageBox.warning(self, "Failed", result.get("error", "Unknown error"))
-
-    # ── DAILY REPORT SETUP ───────────────────────────────────────────────────
-    def _build_report_tab(self):
-        tab = QWidget(); tl = QVBoxLayout(tab); tl.setContentsMargins(14, 14, 14, 14); tl.setSpacing(10)
-        cfg = storage.get_report_settings()
-        self.report_enabled_cb = QCheckBox("Enable daily WhatsApp report"); self.report_enabled_cb.setChecked(cfg.get("enabled", False)); tl.addWidget(self.report_enabled_cb)
-        row = QHBoxLayout(); lbl = QLabel("SEND TIME"); lbl.setObjectName("FormLabel"); lbl.setFixedWidth(160); self.report_time_input = QLineEdit(cfg.get("time", "18:00")); row.addWidget(lbl); row.addWidget(self.report_time_input); tl.addLayout(row)
-        row2 = QHBoxLayout(); lbl2 = QLabel("REPORT TEMPLATE"); lbl2.setObjectName("FormLabel"); lbl2.setFixedWidth(160); self.report_template_combo = QComboBox(); self.report_template_combo.addItem("-- Default report --", "")
-        for t in storage.get_report_templates(): self.report_template_combo.addItem(t.get("name", ""), t.get("id"))
-        idx = self.report_template_combo.findData(cfg.get("template_id", "")); self.report_template_combo.setCurrentIndex(idx if idx >= 0 else 0); row2.addWidget(lbl2); row2.addWidget(self.report_template_combo); tl.addLayout(row2)
-        save = QPushButton("SAVE REPORT SETTINGS"); save.setObjectName("PrimaryBtn"); save.clicked.connect(self._save_report); tl.addWidget(save); tl.addStretch(); self.tabs.addTab(tab, "☷  DAILY REPORTS")
-
-    def _save_report(self):
-        storage.update_report_settings({"enabled": self.report_enabled_cb.isChecked(), "time": self.report_time_input.text().strip() or "18:00", "template_id": self.report_template_combo.currentData(), "include_total_sr": True, "include_pending_sr": True, "include_completed_sr": True, "include_user_activity": True, "include_failed_tasks": True})
-        storage.log_activity("REPORT_SETTINGS", "Daily report settings updated", self.user["id"]); QMessageBox.information(self, "Saved", "Daily report settings saved.")
 
     # ── ROLES ─────────────────────────────────────────────────────────────────
     def _build_roles_tab(self):
