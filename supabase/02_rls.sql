@@ -206,4 +206,5 @@ CREATE POLICY "settings_select" ON public.settings FOR SELECT
   USING (auth.uid() IS NOT NULL);
 
 CREATE POLICY "settings_upsert" ON public.settings FOR ALL
-  USING (auth.user_role() = 'Admin');
+  USING (auth.user_role() = 'Admin')
+  WITH CHECK (auth.user_role() = 'Admin');

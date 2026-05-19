@@ -1,6 +1,7 @@
 // app/layout.tsx
 import type { Metadata } from 'next'
-import { Geist_Mono, Syne } from 'next/font/google'
+import { Syne } from 'next/font/google'
+import { GeistMono } from 'geist/font/mono'
 import './globals.css'
 
 const syne = Syne({
@@ -9,10 +10,7 @@ const syne = Syne({
   weight: ['400', '500', '600', '700', '800'],
 })
 
-const mono = Geist_Mono({
-  subsets: ['latin'],
-  variable: '--font-mono',
-})
+const mono = GeistMono
 
 export const metadata: Metadata = {
   title: 'SR Platform',

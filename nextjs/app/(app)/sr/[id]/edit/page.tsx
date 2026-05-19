@@ -1,8 +1,8 @@
 'use client'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import type { User, Route, UserRole, SRPriority } from '@/types'
+import type { User, Route, SRPriority, SRStatus } from '@/types'
 
 const ISSUE_TYPES = [
   'Hardware Failure','Software Issue','Network Problem','Access & Permissions',
@@ -11,51 +11,69 @@ const ISSUE_TYPES = [
 ]
 
 const PRIORITIES: SRPriority[] = ['Low','Medium','High','Critical']
+const STATUSES: SRStatus[] = ['Open','In Progress','Pending','Closed','Archived']
 
-export default function NewSRPage() {
+export default function EditSRPage() {
   const router = useRouter()
+  const params = useParams()
+  const id = params.id as string
   const supabase = createClient()
 
   const [me, setMe] = useState<User | null>(null)
   const [users, setUsers] = useState<User[]>([])
   const [routes, setRoutes] = useState<Route[]>([])
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
   const [form, setForm] = useState({
     title: '', account: '', customer_name: '', customer_contact: '',
     customer_email: '', issue_type: '', issue_description: '',
-    priority: 'Medium' as SRPriority, owner_id: '', route_id: '',
+    priority: 'Medium' as SRPriority, status: 'Open' as SRStatus,
+    owner_id: '', route_id: '',
   })
 
   useEffect(() => {
     async function load() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) return
-      const [{ data: profile }, { data: allUsers }, { data: allRoutes }] = await Promise.all([
+      const [{ data: profile }, { data: sr }, { data: allUsers }, { data: allRoutes }] = await Promise.all([
         supabase.from('users').select('*').eq('id', user.id).single(),
+        supabase.from('sr_list').select('*').eq('id', id).single(),
         supabase.from('users').select('*').eq('status','active').order('name'),
         supabase.from('routes').select('*').eq('is_active',true).order('name'),
       ])
       setMe(profile)
       setUsers(allUsers ?? [])
       setRoutes(allRoutes ?? [])
-      // Default owner = self
-      if (profile) setForm(f => ({ ...f, owner_id: profile.id }))
+      if (sr) {
+        setForm({
+          title: sr.title ?? '',
+          account: sr.account ?? '',
+          customer_name: sr.customer_name ?? '',
+          customer_contact: sr.customer_contact ?? '',
+          customer_email: sr.customer_email ?? '',
+          issue_type: sr.issue_type ?? '',
+          issue_description: sr.issue_description ?? '',
+          priority: sr.priority ?? 'Medium',
+          status: sr.status ?? 'Open',
+          owner_id: sr.owner_id ?? '',
+          route_id: sr.route_id ?? '',
+        })
+      }
+      setLoading(false)
     }
     load()
-  }, [])
-
-  const canChooseOwner = me && ['Admin','Manager'].includes(me.role)
+  }, [id])
 
   function set(k: string, v: string) { setForm(f => ({ ...f, [k]: v })) }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.title || !form.issue_description) { setError('Title and description are required.'); return }
-    setLoading(true); setError('')
+    setSaving(true); setError('')
     const { data: { user } } = await supabase.auth.getUser()
-    const { data: sr, error: err } = await supabase.from('sr').insert({
+    const { error: err } = await supabase.from('sr').update({
       title: form.title,
       account: form.account || null,
       customer_name: form.customer_name || null,
@@ -64,37 +82,35 @@ export default function NewSRPage() {
       issue_type: form.issue_type || null,
       issue_description: form.issue_description,
       priority: form.priority,
-      owner_id: form.owner_id || user!.id,
-      creator_id: user!.id,
+      status: form.status,
+      owner_id: form.owner_id || undefined,
       route_id: form.route_id || null,
-      status: 'Open',
-    }).select().single()
+    }).eq('id', id)
 
-    if (err) { setError(err.message); setLoading(false); return }
+    if (err) { setError(err.message); setSaving(false); return }
 
-    // Log audit
     await supabase.from('audit_log').insert({
-      action: 'SR_CREATE', user_id: user!.id,
-      target_id: sr.id, target_type: 'sr',
-      description: `Created SR ${sr.sr_number}`,
+      action: 'SR_EDIT', user_id: user!.id,
+      target_id: id, target_type: 'sr',
+      description: `Edited SR`,
     })
 
-    // Trigger Drive folder creation (non-blocking — navigates immediately)
-    fetch('/api/drive/sr-folder', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sr_id: sr.id }),
-    }).catch(() => {/* Drive setup runs in background */})
-
-    router.push(`/sr/${sr.id}`)
+    router.push(`/sr/${id}`)
+    router.refresh()
   }
+
+  const canReassign = me && ['Admin','Manager'].includes(me.role)
+
+  if (loading) return (
+    <div style={{ color: 'var(--text-muted)', padding: '40px', textAlign: 'center' }}>Loading…</div>
+  )
 
   return (
     <>
       <div className="page-header">
         <div>
-          <div className="page-title">New Service Request</div>
-          <div className="page-subtitle">Fill in the details below to create a new SR</div>
+          <div className="page-title">Edit Service Request</div>
+          <div className="page-subtitle">Update SR details</div>
         </div>
         <button onClick={() => router.back()} className="btn btn-ghost">← Cancel</button>
       </div>
@@ -102,14 +118,13 @@ export default function NewSRPage() {
       <form onSubmit={submit} style={{ maxWidth: '760px' }}>
         {error && <div className="alert alert-error mb-4">{error}</div>}
 
-        {/* Section: SR Info */}
         <div className="card mb-4">
           <h3 style={{ marginBottom: '16px' }}>SR Information</h3>
-          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div className="form-group">
               <label className="form-label required">Title / Summary</label>
-              <input className="form-input" placeholder="Brief description of the issue…"
-                value={form.title} onChange={e => set('title', e.target.value)} required />
+              <input className="form-input" value={form.title}
+                onChange={e => set('title', e.target.value)} required />
             </div>
             <div className="form-row">
               <div className="form-group">
@@ -127,81 +142,70 @@ export default function NewSRPage() {
               </div>
             </div>
             <div className="form-group">
+              <label className="form-label">Status</label>
+              <select className="form-select" value={form.status} onChange={e => set('status', e.target.value as SRStatus)}>
+                {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
               <label className="form-label required">Issue Description</label>
-              <textarea className="form-textarea" rows={4} placeholder="Detailed description of the problem…"
-                value={form.issue_description} onChange={e => set('issue_description', e.target.value)} required />
+              <textarea className="form-textarea" rows={4} value={form.issue_description}
+                onChange={e => set('issue_description', e.target.value)} required />
             </div>
           </div>
         </div>
 
-        {/* Section: Customer */}
         <div className="card mb-4">
           <h3 style={{ marginBottom: '16px' }}>Customer Details</h3>
-          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
             <div className="form-group">
               <label className="form-label">Account / Company</label>
-              <input className="form-input" placeholder="Company or account name"
-                value={form.account} onChange={e => set('account', e.target.value)} />
+              <input className="form-input" value={form.account} onChange={e => set('account', e.target.value)} />
             </div>
             <div className="form-row">
               <div className="form-group">
                 <label className="form-label">Contact Name</label>
-                <input className="form-input" placeholder="Customer full name"
-                  value={form.customer_name} onChange={e => set('customer_name', e.target.value)} />
+                <input className="form-input" value={form.customer_name} onChange={e => set('customer_name', e.target.value)} />
               </div>
               <div className="form-group">
                 <label className="form-label">Contact Number</label>
-                <input className="form-input" type="tel" placeholder="+91 9999999999"
-                  value={form.customer_contact} onChange={e => set('customer_contact', e.target.value)} />
+                <input className="form-input" type="tel" value={form.customer_contact} onChange={e => set('customer_contact', e.target.value)} />
               </div>
             </div>
             <div className="form-group">
               <label className="form-label">Email Address</label>
-              <input className="form-input" type="email" placeholder="customer@company.com"
-                value={form.customer_email} onChange={e => set('customer_email', e.target.value)} />
+              <input className="form-input" type="email" value={form.customer_email} onChange={e => set('customer_email', e.target.value)} />
             </div>
           </div>
         </div>
 
-        {/* Section: Assignment */}
         <div className="card mb-4">
           <h3 style={{ marginBottom: '16px' }}>Assignment & Route</h3>
-          <div style={{ display:'flex', flexDirection:'column', gap:'14px' }}>
-            <div className="form-group">
-              <label className="form-label required">Owner</label>
-              {canChooseOwner ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+            {canReassign && (
+              <div className="form-group">
+                <label className="form-label">Owner</label>
                 <select className="form-select" value={form.owner_id} onChange={e => set('owner_id', e.target.value)}>
                   <option value="">Select owner…</option>
-                  {users.map(u => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.role})</option>
-                  ))}
+                  {users.map(u => <option key={u.id} value={u.id}>{u.name} ({u.role})</option>)}
                 </select>
-              ) : (
-                <input className="form-input" value={me?.name ?? '—'} disabled
-                  style={{ opacity: 0.7 }} />
-              )}
-              {!canChooseOwner && (
-                <div className="form-hint">SR will be assigned to you automatically</div>
-              )}
-            </div>
+              </div>
+            )}
             <div className="form-group">
-              <label className="form-label">Route (optional)</label>
+              <label className="form-label">Route</label>
               <select className="form-select" value={form.route_id} onChange={e => set('route_id', e.target.value)}>
                 <option value="">No route — manual handling</option>
                 {routes.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
               </select>
-              <div className="form-hint">Routes define the step-by-step workflow for this SR</div>
             </div>
           </div>
         </div>
 
-        <div style={{ display:'flex', gap:'10px' }}>
-          <button type="submit" className="btn btn-primary btn-lg" disabled={loading}>
-            {loading ? 'Creating…' : 'Create Service Request'}
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button type="submit" className="btn btn-primary btn-lg" disabled={saving}>
+            {saving ? 'Saving…' : 'Save Changes'}
           </button>
-          <button type="button" className="btn btn-ghost" onClick={() => router.back()}>
-            Cancel
-          </button>
+          <button type="button" className="btn btn-ghost" onClick={() => router.back()}>Cancel</button>
         </div>
       </form>
     </>

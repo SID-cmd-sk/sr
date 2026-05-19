@@ -34,7 +34,7 @@ export default function ActivitiesPage() {
     const [{ data: profile }, { data: acts }, { data: allUsers }] = await Promise.all([
       supabase.from('users').select('*').eq('id', user.id).single(),
       supabase.from('activities').select('*,owner:users(name,email)').order('created_at', { ascending: false }).limit(100),
-      supabase.from('users').select('id,name,email,role').eq('status','active').order('name'),
+      supabase.from('users').select('*').eq('status','active').order('name'),
     ])
     setMe(profile)
     setActivities(acts ?? [])

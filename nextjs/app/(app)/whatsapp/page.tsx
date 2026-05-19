@@ -146,7 +146,7 @@ export default function WhatsAppPage() {
                 <p style={{ color:'var(--text-secondary)', fontSize:'0.8rem', marginBottom:'20px' }}>{status.phone}</p>
               )}
               <p style={{ color:'var(--text-muted)', fontSize:'0.75rem', marginBottom:'20px' }}>
-                Session is active. All 11 users share this connection for sending messages.
+                Session is active. The team shares this connection for sending messages.
               </p>
               <button className="btn btn-danger" onClick={disconnect} disabled={loading}>
                 Disconnect
