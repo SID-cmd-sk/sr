@@ -1,0 +1,652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SR Platform — Internal Workflow System</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #0A0C12;
+      --surface: #0E1118;
+      --card:    #141820;
+      --border:  #1E2535;
+      --accent:  #00D4AA;
+      --accent-dim: rgba(0,212,170,0.1);
+      --text:    #E8EAF0;
+      --muted:   #8B92A5;
+      --dimmed:  #4B5268;
+      --red:     #E05555;
+      --blue:    #3B9EFF;
+      --yellow:  #D4A800;
+    }
+
+    html { font-size: 15px; }
+    body {
+      font-family: 'Syne', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Grid background ── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 48px 48px;
+      opacity: 0.35;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* ── Glow blobs ── */
+    .blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(100px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-1 {
+      width: 500px; height: 500px;
+      background: rgba(0,212,170,0.06);
+      top: -120px; left: -120px;
+    }
+    .blob-2 {
+      width: 400px; height: 400px;
+      background: rgba(59,158,255,0.05);
+      bottom: -80px; right: -80px;
+    }
+
+    /* ── Layout ── */
+    .wrap {
+      position: relative;
+      z-index: 1;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    /* ── Nav ── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      background: rgba(10,12,18,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 56px;
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .nav-logo {
+      font-weight: 800;
+      font-size: 1.1rem;
+      color: var(--accent);
+      letter-spacing: -0.02em;
+      text-decoration: none;
+    }
+    .nav-badge {
+      font-size: 0.6rem;
+      background: var(--accent-dim);
+      color: var(--accent);
+      border: 1px solid rgba(0,212,170,0.25);
+      padding: 2px 7px;
+      border-radius: 20px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-left: 8px;
+    }
+    .nav-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 18px;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #0A0C12;
+      font-weight: 700;
+      font-family: 'Syne', sans-serif;
+      font-size: 0.875rem;
+      text-decoration: none;
+      transition: background 0.15s, transform 0.1s;
+    }
+    .nav-btn:hover { background: #00B894; transform: translateY(-1px); }
+
+    /* ── Hero ── */
+    .hero {
+      padding: 96px 0 80px;
+      text-align: center;
+    }
+    .hero-label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      background: var(--accent-dim);
+      border: 1px solid rgba(0,212,170,0.2);
+      padding: 5px 14px;
+      border-radius: 20px;
+      margin-bottom: 28px;
+    }
+    .hero-label-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+    .hero h1 {
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.1;
+      margin-bottom: 20px;
+    }
+    .hero h1 span { color: var(--accent); }
+    .hero-sub {
+      font-size: 1.05rem;
+      color: var(--muted);
+      max-width: 540px;
+      margin: 0 auto 36px;
+      line-height: 1.7;
+    }
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 32px;
+      border-radius: 10px;
+      background: var(--accent);
+      color: #0A0C12;
+      font-weight: 700;
+      font-size: 1rem;
+      font-family: 'Syne', sans-serif;
+      text-decoration: none;
+      transition: all 0.15s;
+      box-shadow: 0 0 32px rgba(0,212,170,0.2);
+    }
+    .hero-cta:hover { background: #00B894; transform: translateY(-2px); box-shadow: 0 4px 40px rgba(0,212,170,0.35); }
+
+    /* ── Stats bar ── */
+    .stats-bar {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--card);
+      overflow: hidden;
+      margin: 56px 0;
+    }
+    .stat-item {
+      flex: 1;
+      padding: 20px 16px;
+      text-align: center;
+      border-right: 1px solid var(--border);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-num {
+      font-size: 1.8rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+      line-height: 1;
+    }
+    .stat-lbl {
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-top: 4px;
+      font-weight: 600;
+    }
+
+    /* ── Features ── */
+    .section-label {
+      text-align: center;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 12px;
+    }
+    .section-title {
+      text-align: center;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 8px;
+    }
+    .section-sub {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 48px;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 16px;
+      margin-bottom: 80px;
+    }
+    .feature-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 24px;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+    .feature-card:hover { border-color: rgba(0,212,170,0.4); transform: translateY(-2px); }
+    .feature-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 14px;
+      font-size: 1.2rem;
+    }
+    .feature-card h3 {
+      font-size: 1rem;
+      font-weight: 700;
+      margin-bottom: 6px;
+      letter-spacing: -0.01em;
+    }
+    .feature-card p {
+      font-size: 0.82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    /* ── Architecture ── */
+    .arch-section { margin-bottom: 80px; }
+    .arch-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 12px;
+      margin-top: 40px;
+    }
+    .arch-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px 16px;
+      text-align: center;
+    }
+    .arch-icon { font-size: 1.6rem; margin-bottom: 8px; }
+    .arch-name {
+      font-weight: 700;
+      font-size: 0.875rem;
+      margin-bottom: 4px;
+    }
+    .arch-role {
+      font-size: 0.72rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+    .arch-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--accent);
+      font-size: 1.2rem;
+    }
+
+    /* ── Roles table ── */
+    .roles-section { margin-bottom: 80px; }
+    .roles-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+    .roles-table th {
+      text-align: left;
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+    }
+    .roles-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text);
+    }
+    .roles-table tbody tr:hover { background: rgba(255,255,255,0.02); }
+    .roles-table tbody tr:last-child td { border-bottom: none; }
+    .check { color: var(--accent); font-weight: 700; }
+    .dash  { color: var(--dimmed); }
+    .partial { color: var(--yellow); font-size: 0.72rem; }
+
+    /* ── CTA ── */
+    .cta-section {
+      text-align: center;
+      padding: 64px 24px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      margin-bottom: 60px;
+      position: relative;
+      overflow: hidden;
+    }
+    .cta-section::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 50%; transform: translateX(-50%);
+      width: 200px; height: 2px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+    .cta-section h2 {
+      font-size: 1.8rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin-bottom: 10px;
+    }
+    .cta-section p {
+      color: var(--muted);
+      margin-bottom: 28px;
+      font-size: 0.9rem;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 24px 0;
+      text-align: center;
+      font-size: 0.78rem;
+      color: var(--dimmed);
+    }
+    footer strong { color: var(--muted); }
+
+    /* ── Animations ── */
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .fade-up { animation: fadeUp 0.6s ease forwards; }
+    .delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .delay-2 { animation-delay: 0.2s; opacity: 0; }
+    .delay-3 { animation-delay: 0.3s; opacity: 0; }
+
+    /* ── Responsive ── */
+    @media (max-width: 600px) {
+      .stats-bar { flex-direction: column; }
+      .stat-item { border-right: none; border-bottom: 1px solid var(--border); }
+      .stat-item:last-child { border-bottom: none; }
+      .arch-grid { grid-template-columns: repeat(2, 1fr); }
+      .arch-arrow { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="blob blob-1"></div>
+<div class="blob blob-2"></div>
+
+<!-- ── Navigation ── -->
+<nav>
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">
+      SR Platform
+      <span class="nav-badge">Internal</span>
+    </a>
+    <a href="/login" class="nav-btn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3"/>
+      </svg>
+      Sign In
+    </a>
+  </div>
+</nav>
+
+<!-- ── Hero ── -->
+<section class="hero">
+  <div class="wrap">
+    <div class="fade-up">
+      <div class="hero-label">
+        <span class="hero-label-dot"></span>
+        Cloud-Based · Role-Gated · Internal Only
+      </div>
+    </div>
+    <h1 class="fade-up delay-1">
+      Your team's <span>SR workflow</span><br/>in one place
+    </h1>
+    <p class="hero-sub fade-up delay-2">
+      A complete internal platform for service requests, activities, route-based workflows,
+      email notifications, and WhatsApp messaging — built for a team of 11.
+    </p>
+    <a href="/login" class="hero-cta fade-up delay-3">
+      Open Platform
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </a>
+  </div>
+</section>
+
+<!-- ── Stats bar ── -->
+<div class="wrap">
+  <div class="stats-bar">
+    <div class="stat-item">
+      <div class="stat-num">5</div>
+      <div class="stat-lbl">User Roles</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">11</div>
+      <div class="stat-lbl">Team Members</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">∞</div>
+      <div class="stat-lbl">SR Records</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">QR</div>
+      <div class="stat-lbl">WhatsApp</div>
+    </div>
+    <div class="stat-item">
+      <div class="stat-num">Live</div>
+      <div class="stat-lbl">Dashboard</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Features ── -->
+<section>
+  <div class="wrap">
+    <div class="section-label">Core Modules</div>
+    <h2 class="section-title">Everything your team needs</h2>
+    <p class="section-sub">Built around your existing workflow — no external SaaS, no extra logins.</p>
+
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(59,158,255,0.12);color:#3B9EFF">📋</div>
+        <h3>Service Requests</h3>
+        <p>Full SR lifecycle — create, assign, track, route, close and archive with complete audit history and Drive folder per SR.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,212,170,0.12);color:#00D4AA">⚡</div>
+        <h3>Route Engine</h3>
+        <p>Build multi-step workflows with SLA timers, role assignments, escalation rules and email/WhatsApp triggers at each step.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(139,92,246,0.12);color:#A78BFA">📝</div>
+        <h3>Activities</h3>
+        <p>Log calls, follow-ups, visits and internal tasks without needing an SR. Optionally link to an existing SR.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,212,170,0.12);color:#00D4AA">💬</div>
+        <h3>WhatsApp QR</h3>
+        <p>One shared QR-linked session for the whole team. Trigger messages from SR workflows or send direct from the app.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(59,158,255,0.12);color:#3B9EFF">📧</div>
+        <h3>SMTP Email</h3>
+        <p>Send templated emails via your real company mailbox. Link-based workflow continuation directly from email.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(212,168,0,0.12);color:#D4A800">📊</div>
+        <h3>Reports & Logs</h3>
+        <p>Live dashboard, owner workload, resolution analytics, Google Sheets operational log, CSV export.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(249,115,22,0.12);color:#F97316">📁</div>
+        <h3>Google Drive</h3>
+        <p>Auto-create SR folders with subfolders. Attachments, resolutions and exports stored per SR in Drive.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(224,85,85,0.12);color:#E05555">🔐</div>
+        <h3>Role-Based Access</h3>
+        <p>5 roles: Admin, Manager, Technical, User, Viewer. Every action validated both in UI and on the backend.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon" style="background:rgba(0,212,170,0.12);color:#00D4AA">📄</div>
+        <h3>Templates</h3>
+        <p>Reusable email and WhatsApp message templates with live placeholder insertion and per-route assignment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Architecture ── -->
+<section class="arch-section">
+  <div class="wrap">
+    <div class="section-label">Architecture</div>
+    <h2 class="section-title">How the system fits together</h2>
+    <p class="section-sub">Each layer has one job. Nothing overlaps.</p>
+
+    <div class="arch-grid">
+      <div class="arch-card">
+        <div class="arch-icon">🧑‍💻</div>
+        <div class="arch-name">Next.js</div>
+        <div class="arch-role">Role-based web UI & API routes</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-card">
+        <div class="arch-icon">🗄️</div>
+        <div class="arch-name">Supabase</div>
+        <div class="arch-role">Auth, database & realtime</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-card">
+        <div class="arch-icon">📁</div>
+        <div class="arch-name">Google Drive</div>
+        <div class="arch-role">File & folder storage per SR</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-card">
+        <div class="arch-icon">📊</div>
+        <div class="arch-name">Apps Script</div>
+        <div class="arch-role">Bridge to Sheets & Drive</div>
+      </div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-card">
+        <div class="arch-icon">💬</div>
+        <div class="arch-name">WA Bridge</div>
+        <div class="arch-role">QR-based WhatsApp service</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Roles ── -->
+<section class="roles-section">
+  <div class="wrap">
+    <div class="section-label">Access Control</div>
+    <h2 class="section-title">Role-based permission matrix</h2>
+    <p class="section-sub">Every action is validated in the frontend and enforced again on the backend.</p>
+
+    <div class="card" style="background:var(--card); border:1px solid var(--border); border-radius:14px; overflow:hidden;">
+      <table class="roles-table">
+        <thead>
+          <tr>
+            <th>Action</th>
+            <th>Admin</th>
+            <th>Manager</th>
+            <th>Technical</th>
+            <th>User</th>
+            <th>Viewer</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Create SR</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td></tr>
+          <tr><td>View all SRs</td><td class="check">✓</td><td class="partial">Team</td><td class="partial">Assigned</td><td class="partial">Own</td><td class="partial">Own</td></tr>
+          <tr><td>Close SR</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>Advance Route Step</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>Reassign Owner</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>Edit Routes</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>Edit Templates</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>Send Email / WhatsApp</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="dash">—</td></tr>
+          <tr><td>User Management</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>System Settings</td><td class="check">✓</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td><td class="dash">—</td></tr>
+          <tr><td>Reports</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="check">✓</td><td class="partial">Read</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ── -->
+<div class="wrap">
+  <div class="cta-section">
+    <h2>Ready to start?</h2>
+    <p>Internal access only. Contact your Admin if you need an account.</p>
+    <a href="/login" class="hero-cta" style="display:inline-flex">
+      Go to Login
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <path d="M5 12h14M12 5l7 7-7 7"/>
+      </svg>
+    </a>
+  </div>
+</div>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="wrap">
+    <strong>SR Platform</strong> · Internal Workflow System · Built on Next.js, Supabase, Google Workspace
+  </div>
+</footer>
+
+<script>
+  // Animate on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.style.opacity = '1'
+        e.target.style.transform = 'translateY(0)'
+        e.target.style.transition = 'opacity 0.5s ease, transform 0.5s ease'
+      }
+    })
+  }, { threshold: 0.1 })
+
+  document.querySelectorAll('.feature-card, .arch-card, .stat-item').forEach(el => {
+    el.style.opacity = '0'
+    el.style.transform = 'translateY(16px)'
+    observer.observe(el)
+  })
+</script>
+</body>
+</html>
