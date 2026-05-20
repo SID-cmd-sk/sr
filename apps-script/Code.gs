@@ -8,12 +8,12 @@
 // CONFIGURATION  — update these folder IDs after setup
 // ────────────────────────────────────────────────────────────
 const CONFIG = {
-  SR_ROOT_FOLDER_ID:          'PASTE_YOUR_SR_ROOT_FOLDER_ID',
-  ACTIVITIES_FOLDER_ID:       'PASTE_YOUR_ACTIVITIES_FOLDER_ID',
-  SR_REGISTER_SPREADSHEET_ID: 'PASTE_YOUR_SPREADSHEET_ID',
-  SR_SHEET_NAME:              'SR Register',
-  ACTIVITY_SHEET_NAME:        'Activity Log',
-  SECRET_TOKEN:               'PASTE_A_SECRET_TOKEN',   // match in .env
+	SR_ROOT_FOLDER_ID:          '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
+	ACTIVITIES_FOLDER_ID:       '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
+	SR_REGISTER_SPREADSHEET_ID: '10k6weyGqYVEsUNf4DUe1fFGrBaB2sfOBIskhn2pFWGQ',
+	SR_SHEET_NAME:              'SR Register',
+	ACTIVITY_SHEET_NAME:        'Activity Log',
+	SECRET_TOKEN:               'SR_PLATFORM_2026_SECRET'
 }
 
 // ────────────────────────────────────────────────────────────
