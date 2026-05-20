@@ -8,7 +8,9 @@ const nextConfig = {
     ],
   },
   // Ensure server-side env vars are not leaked to client
-  serverExternalPackages: ['nodemailer'],
+  experimental: {
+    serverComponentsExternalPackages: ['nodemailer']
+  },
 }
 
 module.exports = nextConfig
