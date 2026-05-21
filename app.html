@@ -216,7 +216,7 @@ a{color:inherit;text-decoration:none}
 <!-- ═══════════════════════════════════════════════════════════
   AUTH SCREEN
 ════════════════════════════════════════════════════════════ -->
-<div id="auth-screen" class="hidden">
+<div id="auth-screen">
   <div style="position:relative;z-index:1;width:100%;max-width:380px;animation:slideUp .4s ease">
     <div style="text-align:center;margin-bottom:32px">
       <div style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:var(--accent);margin-bottom:14px;box-shadow:0 0 32px rgba(0,212,170,.2)">
@@ -596,11 +596,11 @@ async function pgDashboard(pc) {
       </tr></thead><tbody>
       ${recentSRs.map(sr=>`<tr onclick="nav('sr-detail',{id:'${sr.id}'})">
         <td><span class="mono text-accent" style="font-size:.75rem;font-weight:600">${sr.sr_number}</span></td>
-        <td class="truncate" style="max-width:220px">${sr.title}</td>
-        <td style="color:var(--text-secondary)">${sr.account??'—'}</td>
+        <td class="truncate" style="max-width:220px">${escHtml(sr.title)}</td>
+        <td style="color:var(--text-secondary)">${escHtml(sr.account??'—')}</td>
         <td>${priBadge(sr.priority)}</td>
         <td>${stsBadge(sr.status)}</td>
-        <td style="font-size:.8rem">${sr.owner_name??'—'}</td>
+        <td style="font-size:.8rem">${escHtml(sr.owner_name??'—')}</td>
         <td class="mono" style="font-size:.72rem;color:var(--text-muted)">${fmtDateS(sr.reported_at)}</td>
       </tr>`).join('')}
       </tbody></table>`}
@@ -670,12 +670,12 @@ async function pgSR(pc, params={}) {
       </tr></thead><tbody>
       ${srs.map(sr=>`<tr onclick="nav('sr-detail',{id:'${sr.id}'})">
         <td><span class="mono text-accent" style="font-size:.75rem;font-weight:600">${sr.sr_number}</span></td>
-        <td class="truncate" style="max-width:200px">${sr.title}</td>
-        <td style="color:var(--text-secondary);font-size:.8rem">${sr.account??'—'}</td>
-        <td style="color:var(--text-secondary);font-size:.8rem">${sr.issue_type??'—'}</td>
+        <td class="truncate" style="max-width:200px">${escHtml(sr.title)}</td>
+        <td style="color:var(--text-secondary);font-size:.8rem">${escHtml(sr.account??'—')}</td>
+        <td style="color:var(--text-secondary);font-size:.8rem">${escHtml(sr.issue_type??'—')}</td>
         <td>${priBadge(sr.priority)}</td>
         <td>${stsBadge(sr.status)}</td>
-        <td style="font-size:.8rem"><div style="font-weight:500">${sr.owner_name??'—'}</div></td>
+        <td style="font-size:.8rem"><div style="font-weight:500">${escHtml(sr.owner_name??'—')}</div></td>
         <td class="mono" style="font-size:.7rem;color:var(--text-muted)">${fmtDateS(sr.reported_at)}</td>
         <td class="mono" style="font-size:.7rem;color:var(--text-muted)">${fmtDateS(sr.updated_at)}</td>
       </tr>`).join('')}
@@ -711,15 +711,13 @@ async function pgSRDetail(pc, params) {
   const [{ data:sr }, { data:steps }, { data:history }, { data:templates }] = await Promise.all([
     sb.from('sr_list').select('*').eq('id', id).single(),
     sr ? sb.from('route_steps').select('*').eq('route_id', sr?.route_id||'').order('step_order') : Promise.resolve({data:[]}),
-    sb.from('sr_stage_history').select('*,advanced_by_user:users(name)').eq('sr_id',id).order('created_at',{ascending:false}),
+    sb.from('sr_stage_history').select('*,advanced_by_user:users(name)').eq('sr_id',id).order('advanced_at',{ascending:false}),
     sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name'),
   ])
 
   if (!sr) { pc.innerHTML = '<div class="alert alert-error">SR not found.</div>'; return }
 
-  const { data: routeSteps } = sr.route_id
-    ? await sb.from('route_steps').select('*').eq('route_id', sr.route_id).order('step_order')
-    : { data: [] }
+  const routeSteps = steps ?? []
 
   const isClosed = ['Closed','Archived'].includes(sr.status)
   const isLastStep = routeSteps?.length > 0 && sr.current_step >= routeSteps.length
@@ -735,7 +733,7 @@ async function pgSRDetail(pc, params) {
           <span class="mono text-accent" style="font-size:.9rem;font-weight:700">${sr.sr_number}</span>
           ${stsBadge(sr.status)} ${priBadge(sr.priority)}
         </div>
-        <div class="page-title" style="margin-top:6px">${sr.title}</div>
+        <div class="page-title" style="margin-top:6px">${escHtml(sr.title)}</div>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${canAdvance ? `<button class="btn btn-secondary" onclick="openAdvanceModal('${id}',${sr.current_step},${routeSteps?.length??0})">→ Next Step</button>` : ''}
@@ -744,7 +742,7 @@ async function pgSRDetail(pc, params) {
         <button class="btn btn-ghost" onclick="sendEmailModal('${id}')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
           Email</button>
-        <button class="btn btn-ghost" style="color:var(--green)" onclick="sendWA('${id}','${sr.customer_contact??''}','${sr.sr_number}','${sr.status}','${sr.customer_name??''}')">
+        <button class="btn btn-ghost" style="color:var(--green)" onclick="sendWABySRId('${id}')">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
           WhatsApp</button>
         ${canEdit ? `<button class="btn btn-ghost" onclick="nav('sr-edit',{id:'${id}'})">Edit</button>` : ''}
@@ -752,7 +750,7 @@ async function pgSRDetail(pc, params) {
     </div>
 
     ${routeSteps?.length ? `<div class="card mb-4">
-      <div style="font-size:.75rem;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">Route: ${sr.route_name??''}</div>
+      <div style="font-size:.75rem;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">Route: ${escHtml(sr.route_name??'')}</div>
       <div style="display:flex;align-items:center;gap:0;overflow-x:auto;padding-bottom:4px">
         ${routeSteps.map((step, i) => {
           const done    = i < sr.current_step
@@ -792,10 +790,10 @@ async function pgSRDetail(pc, params) {
 
     <div class="card mb-4">
       <h4 style="margin-bottom:10px">Issue Description</h4>
-      <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${sr.issue_description??''}</p>
+      <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${escHtml(sr.issue_description??'')}</p>
       ${sr.resolution ? `<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
         <h4 style="margin-bottom:8px;color:var(--green)">Resolution</h4>
-        <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${sr.resolution}</p>
+        <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${escHtml(sr.resolution)}</p>
       </div>` : ''}
     </div>
 
@@ -803,7 +801,7 @@ async function pgSRDetail(pc, params) {
       <h4 style="margin-bottom:12px">Step History</h4>
       ${history.map(h=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.8rem">
         <span style="color:var(--text-secondary)">Step ${h.from_step} → Step ${h.to_step}</span>
-        <span style="color:var(--text-muted)">${h.advanced_by_user?.name??'—'} · ${fmtDate(h.created_at)}</span>
+        <span style="color:var(--text-muted)">${h.advanced_by_user?.name??'—'} · ${fmtDate(h.advanced_at)}</span>
       </div>`).join('')}
     </div>` : ''}
   `
@@ -990,6 +988,13 @@ async function sendWA(srId, phone, srNum, status, custName) {
       toast('✓ WhatsApp sent')
     } else toast(`✗ ${d.error}`, 'error')
   } catch(e) { toast('✗ WA bridge offline — start wa-service', 'error') }
+}
+
+// ── WA helper: look up SR then send (avoids injecting data into onclick) ──
+async function sendWABySRId(srId) {
+  const { data: sr } = await sb.from('sr_list').select('customer_contact,customer_name,sr_number,status').eq('id', srId).single()
+  if (!sr) { toast('Could not load SR', 'error'); return }
+  await sendWA(srId, sr.customer_contact??'', sr.sr_number, sr.status, sr.customer_name??'')
 }
 
 // ── Email from browser (SMTP via EmailJS-style or smtpjs.com CDN) ──
@@ -1373,7 +1378,7 @@ async function pgActivities(pc, params={}) {
       ${filtered.map(a=>`<tr>
         <td style="font-weight:500">${escHtml(a.title)}</td>
         <td style="font-size:.8rem;color:var(--text-secondary)">${a.type}</td>
-        <td style="font-size:.8rem;color:var(--text-secondary)">${a.account??'—'}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">${escHtml(a.account??'—')}</td>
         <td style="font-size:.8rem">${a.contact_name??'—'}</td>
         <td><span class="badge ${STATUS_CLS[a.status]||'badge-closed'}">${a.status}</span></td>
         <td style="font-size:.8rem">${a.owner?.name??'—'}</td>
@@ -1934,7 +1939,7 @@ async function pgReports(pc) {
         <h4 style="margin-bottom:12px">By Owner</h4>
         <table class="data-table"><thead><tr><th>Name</th><th>Total</th><th>Open</th><th>Closed</th><th>Close Rate</th></tr></thead><tbody>
         ${Object.entries(byOwner).sort((a,b)=>b[1].total-a[1].total).map(([name,v])=>`<tr>
-          <td style="font-weight:500">${name}</td>
+          <td style="font-weight:500">${escHtml(name)}</td>
           <td>${v.total}</td>
           <td>${v.open}</td>
           <td>${v.closed}</td>
@@ -1971,7 +1976,7 @@ function barChart(data, keys) {
   const max = Math.max(...keys.map(k=>data[k]??0), 1)
   return `<div style="display:flex;flex-direction:column;gap:8px">
     ${keys.filter(k=>data[k]).map(k=>`<div style="display:flex;align-items:center;gap:10px">
-      <div style="width:120px;font-size:.8rem;color:var(--text-secondary);text-align:right;flex-shrink:0">${k}</div>
+      <div style="width:120px;font-size:.8rem;color:var(--text-secondary);text-align:right;flex-shrink:0">${escHtml(String(k))}</div>
       <div style="flex:1;background:var(--bg-elevated);border-radius:4px;height:20px;position:relative">
         <div style="width:${Math.round((data[k]??0)/max*100)}%;background:var(--accent);height:100%;border-radius:4px;min-width:4px"></div>
       </div>
@@ -2091,6 +2096,23 @@ async function pgSettings(pc) {
       </div>`,
   }
 
+  window.sendTestEmail = async (toEmail, password) => {
+    try {
+      const sent = await Email.send({
+        SecureToken: null,
+        Host:     CFG.smtpHost,
+        Username: toEmail,
+        Password: password,
+        Port:     CFG.smtpPort,
+        To:       toEmail,
+        From:     toEmail,
+        Subject:  'SR Platform — Test Email',
+        Body:     'This is a test email. Your email credentials are working correctly.',
+      })
+      return sent === 'OK'
+    } catch(e) { console.error('Test email error:', e); return false }
+  }
+
   window.switchTab = (t) => {
     tab = t
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
@@ -2114,8 +2136,7 @@ async function pgSettings(pc) {
     el.textContent = 'Sending test…'; el.style.color='var(--text-muted)'
     // Save first then test
     await sb.from('users').update({ smtp_email:em, smtp_password:pw }).eq('id', ME.id)
-    const ok = await sendEmailFromBrowser(null, null, 'SR Platform — Test Email', 'This is a test email. Your email credentials are working correctly.')
-    // Need to override recipient for test
+    const ok = await sendTestEmail(em, pw)
     el.textContent = ok ? '✓ Test email sent to '+em : '✗ Failed — check credentials'
     el.style.color = ok ? 'var(--green)' : 'var(--red)'
   }
