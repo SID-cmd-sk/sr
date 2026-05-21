@@ -177,7 +177,39 @@ a{color:inherit;text-decoration:none}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes slideUp{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 @keyframes spin{to{transform:rotate(360deg)}}
+@keyframes shimmer{0%{background-position:-600px 0}100%{background-position:600px 0}}
 .spinner{width:14px;height:14px;border:2px solid rgba(0,0,0,.25);border-top-color:var(--text-inverse);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+
+/* Sidebar icon sizing - was missing, caused broken layout */
+.icon{width:15px;height:15px;flex-shrink:0;stroke-width:1.75}
+
+/* Skeleton shimmer loader */
+.sk{background:linear-gradient(90deg,var(--bg-elevated) 25%,var(--bg-hover) 50%,var(--bg-elevated) 75%);background-size:600px 100%;animation:shimmer 1.5s ease infinite;border-radius:var(--radius)}
+.sk-h{height:26px;margin-bottom:4px}.sk-sm{height:14px}.sk-btn{height:34px;width:90px}
+.sk-stat{height:76px;border-radius:var(--radius-lg)}
+.sk-row{height:42px;margin-bottom:3px;border-radius:4px}
+.sk-card{height:120px;border-radius:var(--radius-lg)}
+.sk-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px;margin-bottom:20px}
+
+/* Toast container */
+#toast-root{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+.toast{pointer-events:all;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:var(--radius-lg);font-size:.85rem;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideUp .2s ease;border:1px solid transparent;min-width:240px}
+.toast-success{background:#0d2420;border-color:rgba(0,212,170,.3);color:#00D4AA}
+.toast-error{background:#200d0d;border-color:rgba(224,85,85,.3);color:#E05555}
+.toast-info{background:#0d1520;border-color:rgba(59,158,255,.3);color:#3B9EFF}
+
+/* Page error state */
+.page-error{display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px 20px;text-align:center}
+.page-error svg{opacity:.4}
+.page-error-title{font-size:1rem;font-weight:700}
+.page-error-msg{font-size:.82rem;color:var(--text-muted);max-width:360px;line-height:1.6}
+
+/* Sidebar active indicator */
+.sidebar-link.active{background:var(--accent-dim);color:var(--accent);box-shadow:inset 3px 0 0 var(--accent)}
+
+/* Header breadcrumb path */
+.breadcrumb-path{display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-muted)}
+.breadcrumb-path span{color:var(--text-primary);font-weight:500}
 </style>
 </head>
 <body>
@@ -218,8 +250,15 @@ a{color:inherit;text-decoration:none}
   <!-- Sidebar -->
   <aside class="app-sidebar">
     <div class="sidebar-logo">
-      <div class="sidebar-logo-text">SR Platform</div>
-      <div class="sidebar-logo-sub">Internal Workflow</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:28px;border-radius:8px;background:var(--accent);display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#0A0C12" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <div class="sidebar-logo-text">SR Platform</div>
+          <div class="sidebar-logo-sub">SKS 3D · Internal</div>
+        </div>
+      </div>
     </div>
 
     <div class="sidebar-section">
@@ -282,19 +321,28 @@ a{color:inherit;text-decoration:none}
   <!-- Main -->
   <main class="app-main">
     <header class="app-header">
-      <div style="font-size:.75rem;color:var(--text-muted)" id="breadcrumb">Dashboard</div>
-      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
-        <div style="font-size:.8rem;font-weight:600" id="header-user"></div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span style="font-size:.75rem;color:var(--text-muted)">SR Platform</span>
+        <span style="color:var(--border-light)">/</span>
+        <span style="font-size:.78rem;font-weight:600;color:var(--text-primary)" id="breadcrumb">Dashboard</span>
+      </div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:12px">
+        <div style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-muted)">
+          <div id="conn-dot" style="width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 6px var(--green)"></div>
+          <span id="header-user" style="font-weight:500;color:var(--text-secondary)"></span>
+        </div>
       </div>
     </header>
     <div class="page-content" id="page-content">
-      <div style="color:var(--text-muted);padding:40px;text-align:center">Loading…</div>
+      <div style="padding:20px"><div class="sk sk-h" style="width:200px;margin-bottom:20px"></div><div class="sk-grid"><div class="sk sk-stat"></div><div class="sk sk-stat"></div><div class="sk sk-stat"></div><div class="sk sk-stat"></div></div></div>
     </div>
   </main>
 </div>
 
 <!-- Modal container -->
 <div id="modal-root"></div>
+<!-- Toast container -->
+<div id="toast-root"></div>
 
 <script>
 // ═══════════════════════════════════════════════════════════
@@ -455,12 +503,40 @@ function stsBadge(s) { return `<span class="badge ${STATUS_CLS[s]||'badge-closed
 function roleBadge(r){ return `<span class="badge ${ROLE_CLS[r]||'badge-user'}">${r}</span>` }
 
 function toast(msg, type='success') {
+  const root = document.getElementById('toast-root')
   const t = document.createElement('div')
-  t.className = `alert alert-${type}`
-  t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;min-width:260px;animation:slideUp .2s ease;box-shadow:0 4px 24px rgba(0,0,0,.4)'
-  t.textContent = msg
-  document.body.appendChild(t)
-  setTimeout(() => t.remove(), 3500)
+  t.className = `toast toast-${type}`
+  const icon = type==='success'?'✓':type==='error'?'✕':'ℹ'
+  t.innerHTML = `<span style="font-size:.9rem">${icon}</span><span>${msg}</span>`
+  root.appendChild(t)
+  setTimeout(() => { t.style.opacity='0'; t.style.transition='opacity .3s'; setTimeout(()=>t.remove(),300) }, 3500)
+}
+
+function skeletonPage(hasBtn=true) {
+  return `<div class="skel-page">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+      <div class="sk sk-h" style="width:180px"></div>
+      ${hasBtn?'<div class="sk sk-btn"></div>':''}
+    </div>
+    <div class="sk-grid">
+      <div class="sk sk-stat"></div><div class="sk sk-stat"></div>
+      <div class="sk sk-stat"></div><div class="sk sk-stat"></div>
+    </div>
+    <div class="card" style="padding:0">
+      ${[1,2,3,4,5].map(()=>'<div class="sk sk-row" style="margin:8px;border-radius:6px"></div>').join('')}
+    </div>
+  </div>`
+}
+
+function pageError(title, msg, canRetry=false, page='') {
+  return `<div class="page-error">
+    <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="1.5">
+      <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/>
+    </svg>
+    <div class="page-error-title">${title}</div>
+    <div class="page-error-msg">${msg}</div>
+    ${canRetry?`<button class="btn btn-secondary" onclick="nav('${page}')">↺ Retry</button>`:''}
+  </div>`
 }
 
 function modal(html, cls='') {
@@ -478,6 +554,8 @@ function closeModalForce() { document.getElementById('modal-root').innerHTML = '
 // PAGE: DASHBOARD
 // ═══════════════════════════════════════════════════════════
 async function pgDashboard(pc) {
+  pc.innerHTML = skeletonPage()
+  try {
   const [{ data: stats }, { data: recentSRs }, { count: actCount }, { count: overdueCount }] = await Promise.all([
     sb.from('dashboard_stats').select('*').single(),
     sb.from('sr_list').select('*').order('created_at',{ascending:false}).limit(8),
@@ -529,6 +607,12 @@ async function pgDashboard(pc) {
     </div>`
 }
 
+  } catch(e) {
+    console.error('Dashboard error:', e)
+    pc.innerHTML = pageError('Could not load dashboard', 'Make sure you have run the SQL setup files in Supabase. Error: ' + e.message, true, 'dashboard')
+  }
+}
+
 function statCard(label, value, color) {
   return `<div class="stat-card" style="--ac:${color}"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`
 }
@@ -540,6 +624,8 @@ function emptyState(title, desc) {
 // PAGE: SR LIST
 // ═══════════════════════════════════════════════════════════
 async function pgSR(pc, params={}) {
+  pc.innerHTML = skeletonPage()
+  try {
   const q    = params.q ?? ''
   const sts  = params.status ?? ''
   const pri  = params.priority ?? ''
@@ -602,6 +688,12 @@ async function pgSR(pc, params={}) {
     </div>` : ''}`
 }
 
+  } catch(e) {
+    console.error('SR list error:', e)
+    pc.innerHTML = pageError('Could not load service requests', e.message, true, 'sr')
+  }
+}
+
 function srFilter() {
   const q   = document.getElementById('sr-q')?.value ?? ''
   const sts = document.getElementById('sr-sts')?.value ?? ''
@@ -613,6 +705,8 @@ function srFilter() {
 // PAGE: SR DETAIL
 // ═══════════════════════════════════════════════════════════
 async function pgSRDetail(pc, params) {
+  pc.innerHTML = skeletonPage(false)
+  try {
   const id = params.id
   const [{ data:sr }, { data:steps }, { data:history }, { data:templates }] = await Promise.all([
     sb.from('sr_list').select('*').eq('id', id).single(),
@@ -713,6 +807,12 @@ async function pgSRDetail(pc, params) {
       </div>`).join('')}
     </div>` : ''}
   `
+}
+
+  } catch(e) {
+    console.error('SR detail error:', e)
+    pc.innerHTML = pageError('Could not load service request', e.message, true, 'sr')
+  }
 }
 
 function detailRow(label, value) {
@@ -998,6 +1098,8 @@ async function createDriveFolder(srId) {
 // PAGE: NEW SR
 // ═══════════════════════════════════════════════════════════
 async function pgSRNew(pc) {
+  pc.innerHTML = skeletonPage(false)
+  try {
   const [{ data: users }, { data: routes }] = await Promise.all([
     sb.from('users').select('*').eq('status','active').order('name'),
     sb.from('routes').select('*').eq('is_active',true).order('name'),
@@ -1074,6 +1176,11 @@ async function pgSRNew(pc) {
     </div>`
 }
 
+  } catch(e) {
+    pc.innerHTML = pageError('Could not load form', e.message, true, 'sr-new')
+  }
+}
+
 async function submitNewSR() {
   const title = document.getElementById('n-title')?.value?.trim()
   const desc  = document.getElementById('n-desc')?.value?.trim()
@@ -1110,6 +1217,8 @@ async function submitNewSR() {
 // PAGE: EDIT SR
 // ═══════════════════════════════════════════════════════════
 async function pgSREdit(pc, params) {
+  pc.innerHTML = skeletonPage(false)
+  try {
   const id = params.id
   const [{ data: sr }, { data: users }, { data: routes }] = await Promise.all([
     sb.from('sr_list').select('*').eq('id', id).single(),
@@ -1186,6 +1295,11 @@ async function pgSREdit(pc, params) {
     </div>`
 }
 
+  } catch(e) {
+    pc.innerHTML = pageError('Could not load edit form', e.message, true, 'sr')
+  }
+}
+
 async function submitEditSR(id) {
   const title = document.getElementById('e-title')?.value?.trim()
   const desc  = document.getElementById('e-desc')?.value?.trim()
@@ -1221,6 +1335,8 @@ function escHtml(str) {
 const ACT_TYPES = ['Call','Follow-up','Site Visit','Internal Reminder','Coordination','Pre-Sales','Support Note','Other']
 
 async function pgActivities(pc, params={}) {
+  pc.innerHTML = skeletonPage()
+  try {
   const filter = params.status ?? ''
   const q = params.q ?? ''
   const [{ data: acts }, { data: users }] = await Promise.all([
@@ -1269,6 +1385,12 @@ async function pgActivities(pc, params={}) {
       </tr>`).join('')}
       </tbody></table>`}
     </div>`
+}
+
+  } catch(e) {
+    console.error('Activities error:', e)
+    pc.innerHTML = pageError('Could not load activities', e.message, true, 'activities')
+  }
 }
 
 async function updateActStatus(id, status) {
@@ -1335,6 +1457,8 @@ async function submitNewActivity() {
 // PAGE: ROUTES
 // ═══════════════════════════════════════════════════════════
 async function pgRoutes(pc) {
+  pc.innerHTML = skeletonPage()
+  try {
   const { data: routes } = await sb.from('routes').select('*').order('name')
   let selectedRoute = null, selectedSteps = []
 
@@ -1420,6 +1544,11 @@ async function pgRoutes(pc) {
   }
 }
 
+  } catch(e) {
+    pc.innerHTML = pageError('Could not load routes', e.message, true, 'routes')
+  }
+}
+
 function openNewRoute() {
   modal(`
     <div class="modal-header"><div class="modal-title">New Route</div></div>
@@ -1486,6 +1615,8 @@ async function submitAddStep(routeId) {
 // PAGE: TEMPLATES
 // ═══════════════════════════════════════════════════════════
 async function pgTemplates(pc) {
+  pc.innerHTML = skeletonPage()
+  try {
   const { data: templates } = await sb.from('templates').select('*').order('name')
 
   pc.innerHTML = `
@@ -1516,6 +1647,12 @@ async function pgTemplates(pc) {
       <strong style="color:var(--text-secondary)">Available placeholders:</strong>
       {{sr_number}} {{customer_name}} {{owner_name}} {{issue_type}} {{status}} {{priority}} {{account}} {{resolution}} {{company_name}}
     </div>`
+}
+
+  } catch(e) {
+    console.error('Templates error:', e)
+    pc.innerHTML = pageError('Could not load templates', e.message, true, 'templates')
+  }
 }
 
 function openNewTemplate(tpl=null) {
@@ -1652,7 +1789,9 @@ async function pgWhatsApp(pc) {
 // PAGE: USERS (Admin)
 // ═══════════════════════════════════════════════════════════
 async function pgUsers(pc) {
-  if (!['Admin','Manager'].includes(ME?.role)) { pc.innerHTML='<div class="alert alert-error">Access denied.</div>'; return }
+  if (!['Admin','Manager'].includes(ME?.role)) { pc.innerHTML=pageError('Access Denied','You need Admin or Manager role to view this page.'); return }
+  pc.innerHTML = skeletonPage()
+  try {
   const { data: users } = await sb.from('users').select('*').order('name')
 
   pc.innerHTML = `
@@ -1679,6 +1818,12 @@ async function pgUsers(pc) {
       </tr>`).join('')??''}
       </tbody></table>
     </div>`
+}
+
+  } catch(e) {
+    console.error('Users error:', e)
+    pc.innerHTML = pageError('Could not load users', e.message, true, 'users')
+  }
 }
 
 async function updateUserRole(uid, role) {
@@ -1767,6 +1912,7 @@ async function pgReports(pc) {
     })
     const avgHours = resolvedCount>0 ? Math.round(totalResMs/resolvedCount/3600000) : null
 
+    try {
     document.getElementById('report-body').innerHTML = `
       <div class="grid-4 mb-5">
         ${statCard('Total SRs', all.length, 'var(--blue)')}
@@ -1809,10 +1955,14 @@ async function pgReports(pc) {
         ${['7d','30d','90d','all'].map(r=>`<button class="btn ${r===range?'btn-primary':'btn-ghost'} btn-sm" onclick="setRange('${r}')">${r==='all'?'All Time':r}</button>`).join('')}
       </div>
     </div>
-    <div id="report-body">Loading…</div>`
+    <div id="report-body">${skeletonPage(false)}</div>`
 
-  window.setRange = async (r) => { range=r; await loadReport()
+  window.setRange = async (r) => { range=r; document.getElementById('report-body').innerHTML=skeletonPage(false); await loadReport()
     document.querySelectorAll('#page-content .btn').forEach(b=>{ b.className=b.getAttribute('onclick')?.includes(`'${r}'`)?'btn btn-primary btn-sm':'btn btn-ghost btn-sm' })
+  }
+    } catch(e) {
+      document.getElementById('report-body').innerHTML = pageError('Could not load report', e.message, true, 'reports')
+    }
   }
   loadReport()
 }
@@ -1834,7 +1984,9 @@ function barChart(data, keys) {
 // PAGE: SETTINGS
 // ═══════════════════════════════════════════════════════════
 async function pgSettings(pc) {
+  pc.innerHTML = skeletonPage(false)
   let tab = 'email'
+  try {
   const { data: driveSet }  = await sb.from('settings').select('value').eq('key','drive').single()
   const { data: genSet }    = await sb.from('settings').select('value').eq('key','general').single()
   const { data: waSet }     = await sb.from('settings').select('value').eq('key','whatsapp').single()
@@ -1995,6 +2147,9 @@ async function pgSettings(pc) {
   }
 
   switchTab('email')
+  } catch(e) {
+    pc.innerHTML = pageError('Could not load settings', e.message, true, 'settings')
+  }
 }
 </script>
 <!-- smtpjs CDN for browser-based SMTP send (no server needed) -->
