@@ -708,16 +708,17 @@ async function pgSRDetail(pc, params) {
   pc.innerHTML = skeletonPage(false)
   try {
   const id = params.id
-  const [{ data:sr }, { data:steps }, { data:history }, { data:templates }] = await Promise.all([
+  const [{ data:sr }, { data:history }, { data:templates }] = await Promise.all([
     sb.from('sr_list').select('*').eq('id', id).single(),
-    sr ? sb.from('route_steps').select('*').eq('route_id', sr?.route_id||'').order('step_order') : Promise.resolve({data:[]}),
     sb.from('sr_stage_history').select('*,advanced_by_user:users(name)').eq('sr_id',id).order('advanced_at',{ascending:false}),
     sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name'),
   ])
 
   if (!sr) { pc.innerHTML = '<div class="alert alert-error">SR not found.</div>'; return }
 
-  const routeSteps = steps ?? []
+  const { data: routeSteps } = sr.route_id
+    ? await sb.from('route_steps').select('*').eq('route_id', sr.route_id).order('step_order')
+    : { data: [] }
 
   const isClosed = ['Closed','Archived'].includes(sr.status)
   const isLastStep = routeSteps?.length > 0 && sr.current_step >= routeSteps.length
@@ -756,8 +757,8 @@ async function pgSRDetail(pc, params) {
           const done    = i < sr.current_step
           const current = i === sr.current_step - 1
           return `<div style="display:flex;align-items:center;gap:6px">
-            <div title="${step.name}" class="route-step-dot ${done?'done':current?'current':''}" style="cursor:default">${i+1}</div>
-            <span style="font-size:.7rem;color:${done?'var(--accent)':current?'var(--text-primary)':'var(--text-muted)'};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${step.name}">${step.name}</span>
+            <div title="${escHtml(step.name??'')}" class="route-step-dot ${done?'done':current?'current':''}" style="cursor:default">${i+1}</div>
+            <span style="font-size:.7rem;color:${done?'var(--accent)':current?'var(--text-primary)':'var(--text-muted)'};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(step.name??'')}">${escHtml(step.name??'')}</span>
             ${i < routeSteps.length-1 ? `<div class="route-connector ${done?'done':''}"></div>` : ''}
           </div>`
         }).join('')}
@@ -776,7 +777,7 @@ async function pgSRDetail(pc, params) {
         ${sr.closed_at ? detailRow('Closed', fmtDate(sr.closed_at)) : ''}
         ${sr.drive_folder_url ? `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
           <span style="color:var(--text-muted);font-size:.8rem">Drive Folder</span>
-          <a href="${sr.drive_folder_url}" target="_blank" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.75rem">Open →</a>
+          <a href="${sr.drive_folder_url}" target="_blank" rel="noopener noreferrer" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.75rem">Open →</a>
         </div>` : ''}
       </div>
       <div class="card">
@@ -841,7 +842,7 @@ async function openAdvanceModal(srId, currentStep, totalSteps) {
           <label class="form-label req">Select Email Template</label>
           ${!templates?.length
             ? `<div style="padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius);font-size:.8rem;color:var(--text-muted)">No active email templates. <button class="btn btn-ghost btn-sm" onclick="nav('templates')">Create one →</button></div>`
-            : `<select class="form-select" id="adv-tpl">${templates.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>`}
+            : `<select class="form-select" id="adv-tpl">${templates.map(t=>`<option value="${t.id}">${escHtml(t.name??'')}</option>`).join('')}</select>`}
         </div>
       </div>
     </div>
@@ -944,7 +945,7 @@ async function sendEmailModal(srId) {
         <label class="form-label">Template (optional)</label>
         <select class="form-select" id="em-tpl">
           <option value="">No template — custom message</option>
-          ${templates?.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')??''}
+          ${templates?.map(t=>`<option value="${t.id}">${escHtml(t.name??'')}</option>`).join('')??''}
         </select>
       </div>
       <div class="form-group">
@@ -1160,7 +1161,7 @@ async function pgSRNew(pc) {
             ${canChooseOwner
               ? `<select class="form-select" id="n-owner">
                   <option value="">Select owner…</option>
-                  ${users?.map(u=>`<option value="${u.id}" ${u.id===ME.id?'selected':''}>${u.name} (${u.role})</option>`).join('')}
+                  ${users?.map(u=>`<option value="${u.id}" ${u.id===ME.id?'selected':''}>${escHtml(u.name??'')} (${u.role})</option>`).join('')}
                  </select>`
               : `<input class="form-input" value="${ME?.name??''}" disabled style="opacity:.7"/>
                  <div class="form-hint">SR will be assigned to you</div>`}
@@ -1168,7 +1169,7 @@ async function pgSRNew(pc) {
           <div class="form-group"><label class="form-label">Route (optional)</label>
             <select class="form-select" id="n-route">
               <option value="">No route — manual handling</option>
-              ${routes?.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+              ${routes?.map(r=>`<option value="${r.id}">${escHtml(r.name??'')}</option>`).join('')}
             </select>
             <div class="form-hint">Routes define step-by-step workflow</div>
           </div>
@@ -1284,12 +1285,12 @@ async function pgSREdit(pc, params) {
         <div style="display:flex;flex-direction:column;gap:14px">
           ${canReassign ? `<div class="form-group"><label class="form-label">Owner</label>
             <select class="form-select" id="e-owner">
-              ${users?.map(u=>`<option value="${u.id}" ${u.id===sr.owner_id?'selected':''}>${u.name} (${u.role})</option>`).join('')}
+              ${users?.map(u=>`<option value="${u.id}" ${u.id===sr.owner_id?'selected':''}>${escHtml(u.name??'')} (${u.role})</option>`).join('')}
             </select></div>` : ''}
           <div class="form-group"><label class="form-label">Route</label>
             <select class="form-select" id="e-route">
               <option value="">No route — manual handling</option>
-              ${routes?.map(r=>`<option value="${r.id}" ${r.id===sr.route_id?'selected':''}>${r.name}</option>`).join('')}
+              ${routes?.map(r=>`<option value="${r.id}" ${r.id===sr.route_id?'selected':''}>${escHtml(r.name??'')}</option>`).join('')}
             </select></div>
         </div>
       </div>
@@ -1417,7 +1418,7 @@ function openNewActivity(users) {
           </select></div>
         <div class="form-group"><label class="form-label">Owner</label>
           <select class="form-select" id="na-owner">
-            ${users.map(u=>`<option value="${u.id}" ${u.id===ME.id?'selected':''}>${u.name}</option>`).join('')}
+            ${users.map(u=>`<option value="${u.id}" ${u.id===ME.id?'selected':''}>${escHtml(u.name??'')}</option>`).join('')}
           </select></div>
       </div>
       <div class="form-row">
@@ -1481,8 +1482,8 @@ async function pgRoutes(pc) {
           ${!routes?.length ? '<div style="color:var(--text-muted);font-size:.85rem">No routes yet.</div>' :
           routes.map(r=>`<div onclick="selectRoute('${r.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:var(--radius);cursor:pointer;background:${selectedRoute?.id===r.id?'var(--accent-dim)':'transparent'};margin-bottom:4px;border:1px solid ${selectedRoute?.id===r.id?'var(--accent)':'transparent'}">
             <div>
-              <div style="font-weight:600;font-size:.875rem">${r.name}</div>
-              ${r.description?`<div style="font-size:.75rem;color:var(--text-muted)">${r.description}</div>`:''}
+              <div style="font-weight:600;font-size:.875rem">${escHtml(r.name??'')}</div>
+              ${r.description?`<div style="font-size:.75rem;color:var(--text-muted)">${escHtml(r.description)}</div>`:''}
             </div>
             <div style="display:flex;align-items:center;gap:6px">
               <span class="badge ${r.is_active?'badge-in-progress':'badge-closed'}">${r.is_active?'Active':'Inactive'}</span>
@@ -1501,7 +1502,7 @@ async function pgRoutes(pc) {
               selectedSteps.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius);margin-bottom:6px">
                 <div class="route-step-dot">${s.step_order}</div>
                 <div style="flex:1">
-                  <div style="font-weight:600;font-size:.85rem">${s.name}</div>
+                  <div style="font-weight:600;font-size:.85rem">${escHtml(s.name??'')}</div>
                   <div style="font-size:.75rem;color:var(--text-muted)">${s.assigned_role} ${s.sla_hours?`· SLA ${s.sla_hours}h`:''}</div>
                 </div>
                 ${['Admin','Manager'].includes(ME?.role)?`
@@ -1764,8 +1765,8 @@ async function pgWhatsApp(pc) {
   pollInterval = setInterval(fetchWAStatus, 4000)
 
   // Cleanup polling when navigating away
-  const orig = window.onhashchange
-  window.onhashchange = (e) => { clearInterval(pollInterval); if (orig) orig(e); routeFromHash() }
+  const waCleanup = () => { clearInterval(pollInterval); window.removeEventListener('hashchange', waCleanup) }
+  window.addEventListener('hashchange', waCleanup)
 
   window.waConnect = async () => {
     try { await fetch(`${CFG.waBridgeUrl}/connect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
@@ -1810,7 +1811,7 @@ async function pgUsers(pc) {
       </tr></thead><tbody>
       ${users?.map(u=>`<tr>
         <td style="font-weight:500">${escHtml(u.name??'—')}</td>
-        <td style="font-size:.8rem;color:var(--text-secondary)">${u.email}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">${escHtml(u.email)}</td>
         <td>${roleBadge(u.role)}</td>
         <td><span class="badge ${u.status==='active'?'badge-in-progress':'badge-closed'}">${u.status}</span></td>
         <td>${u.smtp_email ? `<span class="badge badge-in-progress">✓ ${u.smtp_email}</span>` : '<span class="badge badge-closed">Not set</span>'}</td>
@@ -1868,15 +1869,11 @@ async function submitInvite() {
   if (!email||!name) return
   // Use Supabase admin invite via service role — or just insert user and they signup
   // For GitHub Pages: insert user profile; send Supabase magic link via sb.auth.signInWithOtp
-  const { error } = await sb.auth.admin?.inviteUserByEmail(email).catch(()=>({error:{message:'Use Supabase dashboard to invite users'}}))
-  if (!error) {
-    await sb.from('users').upsert({ email, name, role, status:'active' }, { onConflict:'email' })
-    closeModalForce(); toast('✓ Invite sent')
-  } else {
-    // Fallback — show instructions
-    closeModalForce()
-    toast('Use Supabase Dashboard → Auth → Invite user, then set their role here', 'error')
-  }
+  // admin.inviteUserByEmail is not available on anon client
+  // Insert the profile row so role/status is ready when they sign up via Supabase Dashboard
+  await sb.from('users').upsert({ email, name, role, status:'active' }, { onConflict:'email' })
+  closeModalForce()
+  toast('Profile created. Invite user via Supabase Dashboard → Auth → Invite user.', 'info')
   nav('users')
 }
 
