@@ -25,7 +25,38 @@ const {
 // ─── Config ──────────────────────────────────────────────────
 const PORT           = parseInt(process.env.WA_PORT    ?? '3001')
 const AUTH_DIR       = process.env.WA_AUTH_DIR         ?? path.join(__dirname, 'wa_auth')
-const ALLOWED_ORIGIN = process.env.WA_ALLOWED_ORIGIN   ?? '*'   // allow all for GitHub Pages
+const ALLOWED_ORIGINS = process.env.WA_ALLOWED_ORIGINS 
+  ? process.env.WA_ALLOWED_ORIGINS.split(',') 
+  : ['http://localhost:3000', 'http://localhost:5173']  // Secure default
+
+// ─── Rate Limiting ────────────────────────────────────────────
+// Simple in-memory rate limiter (use Redis in production)
+const rateLimitStore = new Map()
+const RATE_LIMIT_WINDOW = 60000  // 1 minute
+const RATE_LIMIT_MAX = 10        // 10 requests per minute
+
+function checkRateLimit(ip) {
+  const now = Date.now()
+  const key = `rate-limit:${ip}`
+  
+  if (!rateLimitStore.has(key)) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
+    return true
+  }
+  
+  const data = rateLimitStore.get(key)
+  if (now > data.resetAt) {
+    rateLimitStore.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW })
+    return true
+  }
+  
+  if (data.count >= RATE_LIMIT_MAX) {
+    return false
+  }
+  
+  data.count++
+  return true
+}
 
 // ─── State ───────────────────────────────────────────────────
 let sock           = null
@@ -36,13 +67,49 @@ let reconnectTimer = null
 
 // ─── Express ─────────────────────────────────────────────────
 const app = express()
-app.use(express.json())
+app.use(express.json({ limit: '1mb' }))  // Limit payload size
 
+// CORS middleware with strict origin checking
 app.use((req, res, next) => {
-  res.setHeader('Access-Control-Allow-Origin',  ALLOWED_ORIGIN)
+  const origin = req.headers.origin
+  
+  // Check if origin is allowed
+  if (origin && ALLOWED_ORIGINS.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin)
+  } else if (!origin) {
+    // Same-origin requests (no Origin header)
+    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000')
+  } else {
+    // Origin not allowed - still respond to OPTIONS but don't allow
+    console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`)
+  }
+  
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
+  res.setHeader('Access-Control-Allow-Credentials', 'false')
+  res.setHeader('Access-Control-Max-Age', '3600')
+  
   if (req.method === 'OPTIONS') return res.sendStatus(204)
+  next()
+})
+
+// Rate limiting middleware
+app.use((req, res, next) => {
+  const ip = req.ip || req.connection.remoteAddress
+  if (!checkRateLimit(ip)) {
+    return res.status(429).json({ 
+      ok: false, 
+      error: 'Too many requests. Please try again later.' 
+    })
+  }
+  next()
+})
+
+// Security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'DENY')
+  res.setHeader('X-XSS-Protection', '1; mode=block')
   next()
 })
 
@@ -87,17 +154,45 @@ app.post('/disconnect', async (req, res) => {
 app.post('/send', async (req, res) => {
   if (!isConnected || !sock)
     return res.json({ ok: false, error: 'WhatsApp not connected. Scan QR first.' })
+  
   const { phone, message } = req.body
-  if (!phone || !message)
+  
+  // Input validation
+  if (!phone || !message) {
     return res.json({ ok: false, error: 'phone and message are required' })
+  }
+  
+  // Sanitize phone number
+  const phoneStr = String(phone).trim()
+  if (phoneStr.length < 7 || phoneStr.length > 20) {
+    return res.json({ ok: false, error: 'Invalid phone number length' })
+  }
+  
+  // Basic phone format validation (digits, +, -, spaces only)
+  if (!/^[0-9+\-\s()]+$/.test(phoneStr)) {
+    return res.json({ ok: false, error: 'Phone number contains invalid characters' })
+  }
+  
+  // Validate message
+  const messageStr = String(message).trim()
+  if (messageStr.length === 0 || messageStr.length > 4096) {
+    return res.json({ ok: false, error: 'Message must be between 1 and 4096 characters' })
+  }
+  
   try {
-    const jid = formatJid(phone)
-    await sock.sendMessage(jid, { text: message })
-    console.log(`[WA] Sent to ${phone}`)
+    const jid = formatJid(phoneStr)
+    if (!jid) {
+      return res.json({ ok: false, error: 'Invalid phone number format' })
+    }
+    
+    await sock.sendMessage(jid, { text: messageStr })
+    console.log(`[WA] Sent to ${phoneStr}`)
     res.json({ ok: true, jid })
   } catch (err) {
     console.error('[WA] Send error:', err.message)
     res.json({ ok: false, error: err.message })
+  }
+}
   }
 })
 
