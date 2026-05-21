@@ -228,25 +228,27 @@ function sanitizeHtml(html) {
 let CONFIG_CACHE = null
 
 /**
- * Load safe configuration from backend
- * Never loads secrets from frontend
+ * Load safe public configuration from config.js.
  */
 async function loadSafeConfig() {
   if (CONFIG_CACHE) return CONFIG_CACHE
   
   try {
-    // In production, this would call a backend API endpoint
-    // For now, we'll load from environment variables (Vite)
+    if (!window.APP_CONFIG) throw new Error('Missing config.js')
+    const appConfig = window.APP_CONFIG
+    const SUPABASE_URL = window.APP_CONFIG.SUPABASE_URL
+    const SUPABASE_ANON = window.APP_CONFIG.SUPABASE_ANON
+
     CONFIG_CACHE = {
-      supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
-      supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-      appsScriptUrl: import.meta.env.VITE_APPS_SCRIPT_URL,
-      driveFolderId: import.meta.env.VITE_DRIVE_SR_FOLDER_ID,
-      activitiesFolderId: import.meta.env.VITE_DRIVE_ACTIVITIES_FOLDER_ID,
-      spreadsheetId: import.meta.env.VITE_DRIVE_SPREADSHEET_ID,
-      srSheetName: import.meta.env.VITE_DRIVE_SR_SHEET_NAME,
-      activitySheetName: import.meta.env.VITE_DRIVE_ACTIVITY_SHEET_NAME,
-      waBridgeUrl: import.meta.env.VITE_WA_BRIDGE_URL,
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON,
+      appsScriptUrl: appConfig.APPS_SCRIPT_URL || null,
+      driveFolderId: appConfig.DRIVE_SR_FOLDER_ID || null,
+      activitiesFolderId: appConfig.DRIVE_ACTIVITIES_FOLDER_ID || null,
+      spreadsheetId: appConfig.DRIVE_SPREADSHEET_ID || null,
+      srSheetName: appConfig.DRIVE_SR_SHEET_NAME || null,
+      activitySheetName: appConfig.DRIVE_ACTIVITY_SHEET_NAME || null,
+      waBridgeUrl: appConfig.WA_BRIDGE_URL || null,
     }
     
     // Validate that critical values are present

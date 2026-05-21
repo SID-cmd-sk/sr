@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 
@@ -346,8 +347,7 @@ a{color:inherit;text-decoration:none}
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// SECURITY: Load configuration from environment + database
-// NO HARDCODED SECRETS IN FRONTEND CODE
+// Load public static-browser configuration + database settings.
 // ═══════════════════════════════════════════════════════════
 let CFG = {
   supabaseUrl:      null,
@@ -364,24 +364,28 @@ let CFG = {
 }
 
 /**
- * Load configuration from environment variables
- * Sensitive values (tokens) are NEVER stored in frontend
+ * Load configuration from config.js.
+ * Only public frontend values belong here.
  */
 async function initializeConfig() {
   try {
-    // Load from Vite environment variables
-    CFG.supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-    CFG.supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
-    CFG.appsScriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL
-    CFG.waBridgeUrl = import.meta.env.VITE_WA_BRIDGE_URL
-    CFG.srFolderId = import.meta.env.VITE_DRIVE_SR_FOLDER_ID
-    CFG.activitiesFolderId = import.meta.env.VITE_DRIVE_ACTIVITIES_FOLDER_ID
-    CFG.srSpreadsheetId = import.meta.env.VITE_DRIVE_SPREADSHEET_ID
-    CFG.srSheetName = import.meta.env.VITE_DRIVE_SR_SHEET_NAME || 'SR Register'
-    CFG.activitySheetName = import.meta.env.VITE_DRIVE_ACTIVITY_SHEET_NAME || 'Activity Log'
+    if (!window.APP_CONFIG) throw new Error('Missing config.js')
+    const appConfig = window.APP_CONFIG
+    const SUPABASE_URL = window.APP_CONFIG.SUPABASE_URL
+    const SUPABASE_ANON = window.APP_CONFIG.SUPABASE_ANON
+
+    CFG.supabaseUrl = SUPABASE_URL
+    CFG.supabaseAnon = SUPABASE_ANON
+    CFG.appsScriptUrl = appConfig.APPS_SCRIPT_URL || null
+    CFG.waBridgeUrl = appConfig.WA_BRIDGE_URL || null
+    CFG.srFolderId = appConfig.DRIVE_SR_FOLDER_ID || null
+    CFG.activitiesFolderId = appConfig.DRIVE_ACTIVITIES_FOLDER_ID || null
+    CFG.srSpreadsheetId = appConfig.DRIVE_SPREADSHEET_ID || null
+    CFG.srSheetName = appConfig.DRIVE_SR_SHEET_NAME || 'SR Register'
+    CFG.activitySheetName = appConfig.DRIVE_ACTIVITY_SHEET_NAME || 'Activity Log'
     
     if (!CFG.supabaseUrl || !CFG.supabaseAnon) {
-      throw new Error('Missing Supabase configuration in environment')
+      throw new Error('Missing Supabase configuration in config.js')
     }
     
     console.log('✓ Configuration loaded successfully (sensitive values protected)')
@@ -756,7 +760,6 @@ async function pgDashboard(pc) {
       </tr>`).join('')}
       </tbody></table>`}
     </div>`
-}
 
   } catch(e) {
     console.error('Dashboard error:', e)
@@ -837,7 +840,6 @@ async function pgSR(pc, params={}) {
       <span style="font-size:.8rem;color:var(--text-secondary)">Page ${page} of ${totalPages}</span>
       ${page<totalPages ? `<button class="btn btn-secondary btn-sm" onclick="nav('sr',{q:'${q}',status:'${sts}',priority:'${pri}',page:${page+1}})">Next →</button>` : ''}
     </div>` : ''}`
-}
 
   } catch(e) {
     console.error('SR list error:', e)
@@ -957,7 +959,6 @@ async function pgSRDetail(pc, params) {
       </div>`).join('')}
     </div>` : ''}
   `
-}
 
   } catch(e) {
     console.error('SR detail error:', e)
@@ -1331,7 +1332,6 @@ async function pgSRNew(pc) {
         <button class="btn btn-ghost" onclick="nav('sr')">Cancel</button>
       </div>
     </div>`
-}
 
   } catch(e) {
     pc.innerHTML = pageError('Could not load form', e.message, true, 'sr-new')
@@ -1450,7 +1450,6 @@ async function pgSREdit(pc, params) {
         <button class="btn btn-ghost" onclick="nav('sr-detail',{id:'${id}'})">Cancel</button>
       </div>
     </div>`
-}
 
   } catch(e) {
     pc.innerHTML = pageError('Could not load edit form', e.message, true, 'sr')
@@ -1542,7 +1541,6 @@ async function pgActivities(pc, params={}) {
       </tr>`).join('')}
       </tbody></table>`}
     </div>`
-}
 
   } catch(e) {
     console.error('Activities error:', e)
@@ -1699,7 +1697,6 @@ async function pgRoutes(pc) {
     ])
     selectRoute(routeId)
   }
-}
 
   } catch(e) {
     pc.innerHTML = pageError('Could not load routes', e.message, true, 'routes')
@@ -1804,7 +1801,6 @@ async function pgTemplates(pc) {
       <strong style="color:var(--text-secondary)">Available placeholders:</strong>
       {{sr_number}} {{customer_name}} {{owner_name}} {{issue_type}} {{status}} {{priority}} {{account}} {{resolution}} {{company_name}}
     </div>`
-}
 
   } catch(e) {
     console.error('Templates error:', e)
@@ -1975,7 +1971,6 @@ async function pgUsers(pc) {
       </tr>`).join('')??''}
       </tbody></table>
     </div>`
-}
 
   } catch(e) {
     console.error('Users error:', e)
@@ -2035,6 +2030,7 @@ async function pgReports(pc) {
   let range = '30d'
 
   async function loadReport() {
+    try {
     const now = new Date()
     const fromDate = range==='7d' ? new Date(now-7*86400000).toISOString()
                    : range==='30d'? new Date(now-30*86400000).toISOString()
@@ -2065,7 +2061,6 @@ async function pgReports(pc) {
     })
     const avgHours = resolvedCount>0 ? Math.round(totalResMs/resolvedCount/3600000) : null
 
-    try {
     document.getElementById('report-body').innerHTML = `
       <div class="grid-4 mb-5">
         ${statCard('Total SRs', all.length, 'var(--blue)')}
@@ -2099,6 +2094,9 @@ async function pgReports(pc) {
         <h4 style="margin-bottom:12px">By Issue Type</h4>
         ${barChart(byType, Object.keys(byType).sort((a,b)=>(byType[b]||0)-(byType[a]||0)))}
       </div>`
+    } catch(e) {
+      document.getElementById('report-body').innerHTML = pageError('Could not load report', e.message, true, 'reports')
+    }
   }
 
   pc.innerHTML = `
@@ -2112,10 +2110,6 @@ async function pgReports(pc) {
 
   window.setRange = async (r) => { range=r; document.getElementById('report-body').innerHTML=skeletonPage(false); await loadReport()
     document.querySelectorAll('#page-content .btn').forEach(b=>{ b.className=b.getAttribute('onclick')?.includes(`'${r}'`)?'btn btn-primary btn-sm':'btn btn-ghost btn-sm' })
-  }
-    } catch(e) {
-      document.getElementById('report-body').innerHTML = pageError('Could not load report', e.message, true, 'reports')
-    }
   }
   loadReport()
 }

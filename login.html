@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SR Platform — Sign In</title>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -58,29 +59,27 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <p class="foot">Internal use only · Contact Admin for access</p>
 </div>
 <script>
-// Load configuration from environment (Vite)
-// CRITICAL: All secrets are loaded from .env, never hardcoded
+// Load static browser configuration.
 let SUPABASE_URL = null
 let SUPABASE_ANON = null
 let sb = null
 
-// Initialize Supabase client with environment variables
+// Initialize Supabase client with public frontend configuration.
 async function initSupabase() {
-  // In development: Vite loads from .env
-  // In production: Backend serves these via API endpoint
   try {
-    SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-    SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!window.APP_CONFIG) throw new Error('Missing config.js')
+    const SUPABASE_URL = window.APP_CONFIG.SUPABASE_URL
+    const SUPABASE_ANON = window.APP_CONFIG.SUPABASE_ANON
     
     if (!SUPABASE_URL || !SUPABASE_ANON) {
-      throw new Error('Missing Supabase configuration. Check .env file.')
+      throw new Error('Missing Supabase configuration. Check config.js.')
     }
     
     const { createClient } = supabase
     sb = createClient(SUPABASE_URL, SUPABASE_ANON)
   } catch (error) {
     console.error('Failed to initialize Supabase:', error)
-    document.body.innerHTML = '<div style="color: red; padding: 20px;">Configuration error. Please check your .env file.</div>'
+    document.body.innerHTML = '<div style="color: red; padding: 20px;">Configuration error. Please check config.js.</div>'
   }
 }
 
