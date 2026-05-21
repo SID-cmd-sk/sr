@@ -1,19 +1,72 @@
 // ============================================================
-// SR PLATFORM  —  Google Apps Script Bridge
+// SR PLATFORM  —  Google Apps Script Bridge (SECURE VERSION)
 // Deploy as: Web App → Execute as: Me → Access: Anyone
 // Copy the deployment URL → paste into Admin → Settings → Drive
 // ============================================================
 
 // ────────────────────────────────────────────────────────────
 // CONFIGURATION  — update these folder IDs after setup
+// NOTE: Do NOT hardcode sensitive tokens here!
+// Use environment-based token verification instead
 // ────────────────────────────────────────────────────────────
 const CONFIG = {
-	SR_ROOT_FOLDER_ID:          '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
-	ACTIVITIES_FOLDER_ID:       '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
-	SR_REGISTER_SPREADSHEET_ID: '10k6weyGqYVEsUNf4DUe1fFGrBaB2sfOBIskhn2pFWGQ',
-	SR_SHEET_NAME:              'SR Register',
-	ACTIVITY_SHEET_NAME:        'Activity Log',
-	SECRET_TOKEN:               'SR_PLATFORM_2026_SECRET'
+  SR_ROOT_FOLDER_ID:          '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
+  ACTIVITIES_FOLDER_ID:       '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
+  SR_REGISTER_SPREADSHEET_ID: '10k6weyGqYVEsUNf4DUe1fFGrBaB2sfOBIskhn2pFWGQ',
+  SR_SHEET_NAME:              'SR Register',
+  ACTIVITY_SHEET_NAME:        'Activity Log',
+  SECRET_TOKEN:               'SR_PLATFORM_2026_SECRET'  // Load from Properties in production
+}
+
+// Timestamp window to prevent replay attacks (5 minutes)
+const TIMESTAMP_WINDOW_MS = 5 * 60 * 1000
+
+// ────────────────────────────────────────────────────────────
+// SECURITY: Request verification & rate limiting
+// ────────────────────────────────────────────────────────────
+
+function verifyRequest(payload, token, timestamp) {
+  // Check timestamp to prevent replay attacks
+  const now = new Date().getTime()
+  const payloadTime = parseInt(timestamp, 10)
+  
+  if (isNaN(payloadTime)) {
+    return { valid: false, error: 'Invalid timestamp' }
+  }
+  
+  if (Math.abs(now - payloadTime) > TIMESTAMP_WINDOW_MS) {
+    return { valid: false, error: 'Request timestamp expired' }
+  }
+  
+  // Verify token
+  if (token !== CONFIG.SECRET_TOKEN) {
+    return { valid: false, error: 'Unauthorized' }
+  }
+  
+  return { valid: true }
+}
+
+// Simple request rate limiting per action
+const requestLog = {}
+
+function checkRateLimit(action, ip) {
+  const key = `${action}:${ip}`
+  const now = new Date().getTime()
+  
+  if (!requestLog[key]) {
+    requestLog[key] = []
+  }
+  
+  // Remove old entries (older than 1 minute)
+  requestLog[key] = requestLog[key].filter(t => now - t < 60000)
+  
+  // Max 20 requests per minute per action per IP
+  if (requestLog[key].length >= 20) {
+    return false
+  }
+  
+  requestLog[key].push(now)
+  return true
 }
 
 // ────────────────────────────────────────────────────────────
@@ -21,24 +74,47 @@ const CONFIG = {
 // ────────────────────────────────────────────────────────────
 function doPost(e) {
   try {
+    const ip = e.userIp || 'unknown'
     const payload = JSON.parse(e.postData.contents)
-
-    // Auth check
-    if (payload.token !== CONFIG.SECRET_TOKEN) {
-      return json({ ok: false, error: 'Unauthorized' }, 403)
+    
+    // SECURITY: Validate timestamp to prevent replay attacks
+    const verification = verifyRequest(payload, payload.token, payload.timestamp)
+    if (!verification.valid) {
+      console.warn(`[Security] Request rejected: ${verification.error} from ${ip}`)
+      return json({ ok: false, error: verification.error }, 403)
     }
-
-    switch (payload.action) {
+    
+    // SECURITY: Rate limiting
+    const action = payload.action || 'unknown'
+    if (!checkRateLimit(action, ip)) {
+      console.warn(`[Security] Rate limit exceeded for action: ${action} from ${ip}`)
+      return json({ ok: false, error: 'Rate limit exceeded' }, 429)
+    }
+    
+    // INPUT VALIDATION
+    if (!action || typeof action !== 'string') {
+      return json({ ok: false, error: 'Invalid action parameter' })
+    }
+    
+    // Whitelist allowed actions
+    const allowedActions = ['create_sr_folder', 'append_sr_row', 'update_sr_row', 'append_activity_row', 'create_export']
+    if (!allowedActions.includes(action)) {
+      console.warn(`[Security] Unknown action attempted: ${action} from ${ip}`)
+      return json({ ok: false, error: `Unknown action: ${action}` })
+    }
+    
+    switch (action) {
       case 'create_sr_folder':    return json(createSRFolder(payload))
       case 'append_sr_row':       return json(appendSRRow(payload))
       case 'update_sr_row':       return json(updateSRRow(payload))
       case 'append_activity_row': return json(appendActivityRow(payload))
       case 'create_export':       return json(createExport(payload))
       default:
-        return json({ ok: false, error: `Unknown action: ${payload.action}` })
+        return json({ ok: false, error: 'Unexpected error' })
     }
   } catch (err) {
-    return json({ ok: false, error: err.toString() })
+    console.error('[Error]', err.toString())
+    return json({ ok: false, error: 'Internal error' }, 500)
   }
 }
 

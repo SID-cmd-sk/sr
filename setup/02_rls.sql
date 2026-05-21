@@ -32,16 +32,24 @@ $$ LANGUAGE sql STABLE SECURITY DEFINER;
 CREATE POLICY "users_select" ON public.users
   FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Only admin can insert / update / delete
+-- Only admin can insert
 CREATE POLICY "users_insert" ON public.users
   FOR INSERT WITH CHECK (auth.user_role() = 'Admin');
 
-CREATE POLICY "users_update" ON public.users
-  FOR UPDATE USING (
-    auth.user_role() = 'Admin'
-    OR id = auth.uid()            -- users can update own profile
+-- Users can update own non-sensitive fields, admins can update anyone
+CREATE POLICY "users_update_self" ON public.users
+  FOR UPDATE USING (id = auth.uid())
+  WITH CHECK (
+    -- Users can only update their own profile, and cannot change sensitive fields
+    id = auth.uid() AND
+    role = (SELECT role FROM public.users WHERE id = auth.uid()) AND  -- Cannot change role
+    status = (SELECT status FROM public.users WHERE id = auth.uid())  -- Cannot change status
   );
 
+CREATE POLICY "users_update_admin" ON public.users
+  FOR UPDATE USING (auth.user_role() = 'Admin');
+
+-- Only admin can delete
 CREATE POLICY "users_delete" ON public.users
   FOR DELETE USING (auth.user_role() = 'Admin');
 

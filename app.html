@@ -346,29 +346,67 @@ a{color:inherit;text-decoration:none}
 
 <script>
 // ═══════════════════════════════════════════════════════════
-// CONFIG — paste your values here
+// SECURITY: Load configuration from environment + database
+// NO HARDCODED SECRETS IN FRONTEND CODE
 // ═══════════════════════════════════════════════════════════
-const CFG = {
-  supabaseUrl:    'https://tjxegeabdorezfwigjti.supabase.co',
-  supabaseAnon:   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRqeGVnZWFiZG9yZXpmd2lnanRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzkyNDMxNjYsImV4cCI6MjA5NDgxOTE2Nn0.ujbh1GY9IrxdBeIk5h6MIWXpV1bjsJ4R_KNwBX--HrQ',
-  appsScriptUrl:  'https://script.google.com/macros/s/AKfycby0HG6UWCy8WS-hItPkvaRT5eUEj5S3_MACKdn6nKdMplQgyU7nELLGQZOoQzp-ZeOyJA/exec',
-  appsScriptToken:'SR_PLATFORM_2026_SECRET',
-  waBridgeUrl:    'http://localhost:3001',  // update in Settings → WhatsApp when bridge is running
-  smtpHost:       'smtpout.secureserver.net',
-  smtpPort:       465,
-  // Google Drive / Sheets
-  srFolderId:           '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
-  activitiesFolderId:   '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',
-  srSpreadsheetId:      '10k6weyGqYVEsUNf4DUe1fFGrBaB2sfOBIskhn2pFWGQ',
-  srSheetName:          'SR Register',
-  activitySheetName:    'Activity Log',
+let CFG = {
+  supabaseUrl:      null,
+  supabaseAnon:     null,
+  appsScriptUrl:    null,
+  waBridgeUrl:      null,
+  smtpHost:         'smtpout.secureserver.net',
+  smtpPort:         465,
+  srFolderId:       null,
+  activitiesFolderId: null,
+  srSpreadsheetId:  null,
+  srSheetName:      'SR Register',
+  activitySheetName:'Activity Log',
+}
+
+/**
+ * Load configuration from environment variables
+ * Sensitive values (tokens) are NEVER stored in frontend
+ */
+async function initializeConfig() {
+  try {
+    // Load from Vite environment variables
+    CFG.supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+    CFG.supabaseAnon = import.meta.env.VITE_SUPABASE_ANON_KEY
+    CFG.appsScriptUrl = import.meta.env.VITE_APPS_SCRIPT_URL
+    CFG.waBridgeUrl = import.meta.env.VITE_WA_BRIDGE_URL
+    CFG.srFolderId = import.meta.env.VITE_DRIVE_SR_FOLDER_ID
+    CFG.activitiesFolderId = import.meta.env.VITE_DRIVE_ACTIVITIES_FOLDER_ID
+    CFG.srSpreadsheetId = import.meta.env.VITE_DRIVE_SPREADSHEET_ID
+    CFG.srSheetName = import.meta.env.VITE_DRIVE_SR_SHEET_NAME || 'SR Register'
+    CFG.activitySheetName = import.meta.env.VITE_DRIVE_ACTIVITY_SHEET_NAME || 'Activity Log'
+    
+    if (!CFG.supabaseUrl || !CFG.supabaseAnon) {
+      throw new Error('Missing Supabase configuration in environment')
+    }
+    
+    console.log('✓ Configuration loaded successfully (sensitive values protected)')
+    return true
+  } catch (error) {
+    console.error('Configuration error:', error)
+    showAuth()
+    return false
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-const { createClient } = supabase
-const sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon)
+let sb = null
+
+function initSupabaseClient() {
+  if (!CFG.supabaseUrl || !CFG.supabaseAnon) {
+    console.error('Cannot initialize Supabase: missing configuration')
+    return false
+  }
+  const { createClient } = supabase
+  sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon)
+  return true
+}
 
 let ME = null   // current user profile
 
@@ -381,36 +419,61 @@ const ROLES       = ['Admin','Manager','Technical','User','Viewer']
 
 // ── Boot ────────────────────────────────────────────────────
 window.addEventListener('load', async () => {
-  sb.auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      await loadProfile(session.user.id)
-      showApp()
-      routeFromHash()
-    } else {
-      ME = null
+  try {
+    // Step 1: Initialize configuration from environment
+    const configOk = await initializeConfig()
+    if (!configOk) {
       showAuth()
+      return
     }
-  })
+    
+    // Step 2: Initialize Supabase client
+    if (!initSupabaseClient()) {
+      showAuth()
+      return
+    }
+    
+    // Step 3: Set up auth state listener
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await loadProfile(session.user.id)
+        showApp()
+        routeFromHash()
+      } else {
+        ME = null
+        showAuth()
+      }
+    })
+  } catch (error) {
+    console.error('Boot error:', error)
+    showAuth()
+  }
 })
 
 window.addEventListener('hashchange', routeFromHash)
 
 async function loadProfile(uid) {
-  const { data } = await sb.from('users').select('*').eq('id', uid).single()
-  ME = data
-  if (ME) {
-    document.getElementById('sidebar-user').textContent = ME.name ?? ME.email
-    document.getElementById('header-user').textContent  = ME.name ?? ME.email
-    if (!['Admin','Manager'].includes(ME.role)) {
-      document.getElementById('admin-section').style.display = 'none'
+  try {
+    const { data } = await sb.from('users').select('*').eq('id', uid).single()
+    ME = data
+    if (ME) {
+      document.getElementById('sidebar-user').textContent = ME.name ?? ME.email
+      document.getElementById('header-user').textContent  = ME.name ?? ME.email
+      if (!['Admin','Manager'].includes(ME.role)) {
+        document.getElementById('admin-section').style.display = 'none'
+      }
     }
+    // Load non-sensitive settings from database only
+    // IMPORTANT: Do NOT load or override sensitive tokens from database
+    // Tokens should ONLY come from environment variables
+    const { data: waSet } = await sb.from('settings').select('value').eq('key','whatsapp').single()
+    if (waSet?.value?.bridge_url) CFG.waBridgeUrl = waSet.value.bridge_url
+    
+    // Log successful profile load
+    await auditLog('LOGIN', ME.id, 'user', 'User logged in', {})
+  } catch (error) {
+    console.error('Profile load error:', error)
   }
-  // Load bridge config from settings
-  const { data: driveSet } = await sb.from('settings').select('value').eq('key','drive').single()
-  if (driveSet?.value?.apps_script_url) CFG.appsScriptUrl   = driveSet.value.apps_script_url
-  if (driveSet?.value?.apps_script_token) CFG.appsScriptToken = driveSet.value.apps_script_token
-  const { data: waSet } = await sb.from('settings').select('value').eq('key','whatsapp').single()
-  if (waSet?.value?.bridge_url) CFG.waBridgeUrl = waSet.value.bridge_url
 }
 
 function showAuth() {
@@ -420,6 +483,74 @@ function showAuth() {
 function showApp() {
   document.getElementById('auth-screen').classList.add('hidden')
   document.getElementById('app-shell').classList.remove('hidden')
+}
+
+// ═══════════════════════════════════════════════════════════
+// SECURITY: Audit Logging & Validation
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Log security-relevant actions to audit_log table
+ */
+async function auditLog(action, targetId, targetType, description, meta = {}) {
+  try {
+    if (!ME) return  // Don't log if no user
+    await sb.from('audit_log').insert([{
+      action,
+      target_id: targetId,
+      target_type: targetType,
+      description,
+      meta,
+      user_id: ME.id
+    }])
+  } catch (error) {
+    console.error('Audit log error:', error)
+  }
+}
+
+/**
+ * Input validation helper - validates form data before submission
+ */
+function validateSRFormData(data) {
+  const errors = []
+  
+  if (!data.title || data.title.trim().length === 0) {
+    errors.push('Title is required')
+  } else if (data.title.length > 500) {
+    errors.push('Title must be 500 characters or less')
+  }
+  
+  if (!data.issue_description || data.issue_description.trim().length === 0) {
+    errors.push('Issue description is required')
+  } else if (data.issue_description.length > 5000) {
+    errors.push('Description must be 5000 characters or less')
+  }
+  
+  if (data.customer_email && !isValidEmail(data.customer_email)) {
+    errors.push('Invalid email address')
+  }
+  
+  if (data.customer_contact && !isValidPhone(data.customer_contact)) {
+    errors.push('Invalid phone number format')
+  }
+  
+  if (data.priority && !['Low', 'Medium', 'High', 'Critical'].includes(data.priority)) {
+    errors.push('Invalid priority value')
+  }
+  
+  if (data.status && !['Open', 'In Progress', 'Pending', 'Closed', 'Archived'].includes(data.status)) {
+    errors.push('Invalid status value')
+  }
+  
+  return { valid: errors.length === 0, errors }
+}
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)
+}
+
+function isValidPhone(phone) {
+  return /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/.test(phone)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -444,7 +575,27 @@ document.addEventListener('keydown', e => {
 })
 
 async function doLogout() {
-  await sb.auth.signOut()
+  try {
+    // Clear all sensitive data from storage
+    sessionStorage.clear()
+    localStorage.removeItem('sb-auth-token')
+    localStorage.removeItem('device_fingerprint')
+    
+    // Log the logout event
+    if (ME) {
+      await auditLog('LOGOUT', ME.id, 'user', 'User logged out', {})
+    }
+    
+    // Sign out from Supabase
+    await sb.auth.signOut()
+    
+    // Redirect to login
+    window.location.href = 'login.html'
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Force logout even if error
+    window.location.href = 'login.html'
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
