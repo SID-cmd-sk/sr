@@ -1,0 +1,1997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SR Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+
+:root{
+  --bg:#0A0C12;--bg-surface:#0E1118;--bg-elevated:#141820;--bg-card:#181D27;--bg-hover:#1E2430;
+  --border:#1E2535;--border-light:#252D3D;
+  --text-primary:#E8EAF0;--text-secondary:#8B92A5;--text-muted:#4B5268;--text-inverse:#0A0C12;
+  --accent:#00D4AA;--accent-dim:rgba(0,212,170,.12);--accent-hover:#00B894;
+  --green:#00D4AA;--yellow:#D4A800;--red:#E05555;--red-crit:#FF2D2D;
+  --blue:#3B9EFF;--purple:#8B5CF6;--orange:#F97316;
+  --font-display:'Syne',system-ui,sans-serif;--font-body:'Syne',system-ui,sans-serif;--font-mono:'Geist Mono','Courier New',monospace;
+  --radius-sm:4px;--radius:8px;--radius-lg:12px;--radius-xl:16px;
+  --sidebar-w:220px;--header-h:56px;--transition:150ms cubic-bezier(.4,0,.2,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{font-family:var(--font-body);background:var(--bg);color:var(--text-primary);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
+::selection{background:var(--accent);color:var(--text-inverse)}
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+h1{font-size:1.75rem;font-weight:700;letter-spacing:-.02em}
+h2{font-size:1.375rem;font-weight:600;letter-spacing:-.01em}
+h3{font-size:1.1rem;font-weight:600}
+h4{font-size:.95rem;font-weight:600}
+a{color:inherit;text-decoration:none}
+
+/* Layout */
+#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;position:relative}
+#auth-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:.35;pointer-events:none}
+.app-shell{display:flex;height:100vh;overflow:hidden}
+.app-sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
+.app-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.app-header{height:var(--header-h);flex-shrink:0;background:var(--bg-surface);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px}
+.page-content{flex:1;overflow-y:auto;padding:20px}
+
+/* Sidebar */
+.sidebar-logo{padding:16px 16px 12px;border-bottom:1px solid var(--border)}
+.sidebar-logo-text{font-family:var(--font-display);font-weight:800;font-size:1.1rem;color:var(--accent);letter-spacing:-.02em}
+.sidebar-logo-sub{font-size:.65rem;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;margin-top:1px}
+.sidebar-section{padding:12px 8px 4px}
+.sidebar-section-label{font-size:.62rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);padding:0 8px;margin-bottom:4px}
+.sidebar-link{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--radius);color:var(--text-secondary);font-size:.875rem;font-weight:500;transition:all var(--transition);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--font-body)}
+.sidebar-link:hover{background:var(--bg-hover);color:var(--text-primary)}
+.sidebar-link.active{background:var(--accent-dim);color:var(--accent)}
+.sidebar-footer{margin-top:auto;padding:12px 8px;border-top:1px solid var(--border)}
+
+/* Cards */
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.card-sm{padding:12px}.card-lg{padding:24px}
+.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;transition:border-color var(--transition)}
+.stat-card:hover{border-color:var(--border-light)}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac,var(--accent))}
+.stat-value{font-family:var(--font-display);font-size:2rem;font-weight:800;color:var(--ac,var(--accent));line-height:1;letter-spacing:-.03em}
+.stat-label{font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)}
+
+/* Table */
+.data-table{width:100%;border-collapse:collapse;font-size:.875rem}
+.data-table th{text-align:left;font-size:.65rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+.data-table td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--text-primary);vertical-align:middle}
+.data-table tbody tr{transition:background var(--transition);cursor:pointer}
+.data-table tbody tr:hover{background:var(--bg-hover)}
+.data-table tbody tr:last-child td{border-bottom:none}
+
+/* Badges */
+.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
+.badge-low{background:rgba(107,114,128,.15);color:#9CA3AF}
+.badge-medium{background:rgba(212,168,0,.15);color:#D4A800}
+.badge-high{background:rgba(224,85,85,.15);color:#E05555}
+.badge-critical{background:rgba(255,45,45,.2);color:#FF6B6B;border:1px solid rgba(255,45,45,.3)}
+.badge-open{background:rgba(59,158,255,.15);color:#3B9EFF}
+.badge-in-progress{background:rgba(0,212,170,.15);color:#00D4AA}
+.badge-pending{background:rgba(212,168,0,.15);color:#D4A800}
+.badge-closed{background:rgba(107,114,128,.15);color:#9CA3AF}
+.badge-archived{background:rgba(55,65,81,.3);color:#6B7280}
+.badge-admin{background:rgba(139,92,246,.15);color:#A78BFA}
+.badge-manager{background:rgba(0,212,170,.15);color:#00D4AA}
+.badge-technical{background:rgba(59,158,255,.15);color:#3B9EFF}
+.badge-user{background:rgba(232,234,240,.08);color:var(--text-secondary)}
+.badge-viewer{background:rgba(55,65,81,.3);color:#6B7280}
+
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:.875rem;font-weight:600;font-family:var(--font-body);cursor:pointer;border:1px solid transparent;transition:all var(--transition);white-space:nowrap;text-decoration:none}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-primary{background:var(--accent);color:var(--text-inverse);border-color:var(--accent)}
+.btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-secondary{background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border-light)}
+.btn-secondary:hover:not(:disabled){background:var(--bg-hover)}
+.btn-ghost{background:transparent;color:var(--text-secondary);border-color:transparent}
+.btn-ghost:hover:not(:disabled){background:var(--bg-hover);color:var(--text-primary)}
+.btn-danger{background:rgba(224,85,85,.1);color:var(--red);border-color:rgba(224,85,85,.25)}
+.btn-danger:hover:not(:disabled){background:rgba(224,85,85,.2)}
+.btn-sm{padding:4px 10px;font-size:.8rem}
+.btn-lg{padding:10px 20px;font-size:1rem}
+
+/* Forms */
+.form-group{display:flex;flex-direction:column;gap:6px}
+.form-label{font-size:.75rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--text-secondary)}
+.form-label.req::after{content:' *';color:var(--red)}
+.form-input,.form-select,.form-textarea{background:var(--bg-elevated);border:1px solid var(--border-light);border-radius:var(--radius);padding:8px 12px;font-size:.875rem;font-family:var(--font-body);color:var(--text-primary);width:100%;transition:border-color var(--transition),box-shadow var(--transition);outline:none;-webkit-appearance:none}
+.form-input:focus,.form-select:focus,.form-textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.form-input::placeholder{color:var(--text-muted)}
+.form-textarea{resize:vertical;min-height:90px;line-height:1.5}
+.form-select{cursor:pointer}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.form-hint{font-size:.75rem;color:var(--text-muted);margin-top:2px}
+
+/* Modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 150ms ease}
+.modal{background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-xl);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;animation:slideUp 200ms cubic-bezier(.34,1.56,.64,1)}
+.modal-lg{max-width:800px}.modal-sm{max-width:420px}
+.modal-header{padding:20px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.modal-title{font-size:1.1rem;font-weight:700}
+.modal-body{padding:20px 24px;display:flex;flex-direction:column;gap:16px}
+.modal-footer{padding:16px 24px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:8px}
+
+/* Page header */
+.page-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;gap:12px}
+.page-title{font-size:1.375rem;font-weight:700;letter-spacing:-.01em}
+.page-subtitle{font-size:.8rem;color:var(--text-secondary);margin-top:2px}
+
+/* Filter bar */
+.filter-bar{display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap}
+.search-wrap{position:relative;flex:1;min-width:200px}
+.search-wrap svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text-muted);pointer-events:none}
+.search-wrap input{padding-left:32px}
+
+/* Tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--border);margin-bottom:20px}
+.tab-btn{padding:8px 16px;font-size:.875rem;font-weight:500;color:var(--text-secondary);background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;cursor:pointer;transition:all var(--transition);font-family:var(--font-body)}
+.tab-btn:hover{color:var(--text-primary)}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+
+/* Alerts */
+.alert{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--radius);font-size:.875rem;border:1px solid transparent;margin-bottom:12px}
+.alert-success{background:rgba(0,212,170,.1);border-color:rgba(0,212,170,.2);color:var(--green)}
+.alert-error{background:rgba(224,85,85,.1);border-color:rgba(224,85,85,.2);color:var(--red)}
+.alert-warning{background:rgba(212,168,0,.1);border-color:rgba(212,168,0,.2);color:var(--yellow)}
+.alert-info{background:rgba(59,158,255,.1);border-color:rgba(59,158,255,.2);color:var(--blue)}
+
+/* Empty state */
+.empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 20px;text-align:center}
+.empty-icon{width:48px;height:48px;border-radius:var(--radius-lg);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;color:var(--text-muted)}
+.empty-title{font-weight:600;color:var(--text-secondary)}
+.empty-desc{font-size:.8rem;color:var(--text-muted);max-width:280px}
+
+/* Route progress */
+.route-step-dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:var(--text-muted);flex-shrink:0}
+.route-step-dot.done{background:var(--accent);border-color:var(--accent);color:var(--text-inverse)}
+.route-step-dot.current{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-dim)}
+.route-connector{height:2px;flex:1;background:var(--border);min-width:20px}
+.route-connector.done{background:var(--accent)}
+
+/* Utilities */
+.flex{display:flex}.flex-col{flex-direction:column}.items-center{align-items:center}
+.justify-between{justify-content:space-between}.gap-2{gap:8px}.gap-3{gap:12px}.gap-4{gap:16px}
+.flex-1{flex:1}.w-full{width:100%}
+.grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.grid-4{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:16px}
+.mb-2{margin-bottom:8px}.mb-3{margin-bottom:12px}.mb-4{margin-bottom:16px}.mb-5{margin-bottom:20px}
+.mt-auto{margin-top:auto}.ml-auto{margin-left:auto}
+.truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.hidden{display:none!important}
+.text-accent{color:var(--accent)}.text-muted{color:var(--text-muted)}.text-red{color:var(--red)}.text-green{color:var(--green)}
+.mono{font-family:var(--font-mono)}
+
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideUp{from{opacity:0;transform:translateY(16px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{width:14px;height:14px;border:2px solid rgba(0,0,0,.25);border-top-color:var(--text-inverse);border-radius:50%;animation:spin .7s linear infinite;display:inline-block}
+</style>
+</head>
+<body>
+<!-- ═══════════════════════════════════════════════════════════
+  AUTH SCREEN
+════════════════════════════════════════════════════════════ -->
+<div id="auth-screen" class="hidden">
+  <div style="position:relative;z-index:1;width:100%;max-width:380px;animation:slideUp .4s ease">
+    <div style="text-align:center;margin-bottom:32px">
+      <div style="display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:var(--accent);margin-bottom:14px;box-shadow:0 0 32px rgba(0,212,170,.2)">
+        <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#0A0C12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <div style="font-weight:800;font-size:1.45rem;letter-spacing:-.03em">SR Platform</div>
+      <div style="font-size:.7rem;color:var(--text-muted);letter-spacing:.12em;text-transform:uppercase;margin-top:4px">Internal Workflow System</div>
+    </div>
+    <div class="card card-lg">
+      <h3 style="margin-bottom:20px">Sign in to your account</h3>
+      <div id="login-error" class="alert alert-error hidden"></div>
+      <div class="form-group mb-3">
+        <label class="form-label">Email Address</label>
+        <input class="form-input" type="email" id="login-email" placeholder="you@sks3d.com" autocomplete="email"/>
+      </div>
+      <div class="form-group" style="margin-bottom:16px">
+        <label class="form-label">Password</label>
+        <input class="form-input" type="password" id="login-pass" placeholder="••••••••" autocomplete="current-password"/>
+      </div>
+      <button class="btn btn-primary w-full" id="login-btn" onclick="doLogin()" style="justify-content:center">Sign In</button>
+    </div>
+    <p style="text-align:center;margin-top:20px;font-size:.72rem;color:var(--text-muted)">Internal use only · Contact Admin for access</p>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+  APP SHELL
+════════════════════════════════════════════════════════════ -->
+<div id="app-shell" class="app-shell hidden">
+
+  <!-- Sidebar -->
+  <aside class="app-sidebar">
+    <div class="sidebar-logo">
+      <div class="sidebar-logo-text">SR Platform</div>
+      <div class="sidebar-logo-sub">Internal Workflow</div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Main</div>
+      <button class="sidebar-link" onclick="nav('dashboard')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        Dashboard
+      </button>
+      <button class="sidebar-link" onclick="nav('sr')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg>
+        Service Requests
+      </button>
+      <button class="sidebar-link" onclick="nav('activities')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Activities
+      </button>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Manage</div>
+      <button class="sidebar-link" onclick="nav('routes')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        Routes
+      </button>
+      <button class="sidebar-link" onclick="nav('templates')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        Templates
+      </button>
+      <button class="sidebar-link" onclick="nav('whatsapp')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        WhatsApp
+      </button>
+    </div>
+
+    <div class="sidebar-section" id="admin-section">
+      <div class="sidebar-section-label">Admin</div>
+      <button class="sidebar-link" onclick="nav('users')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        Users
+      </button>
+      <button class="sidebar-link" onclick="nav('reports')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        Reports
+      </button>
+      <button class="sidebar-link" onclick="nav('settings')">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+        Settings
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div style="font-size:.78rem;color:var(--text-muted);padding:0 8px;margin-bottom:8px" id="sidebar-user"></div>
+      <button class="sidebar-link" onclick="doLogout()">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Sign Out
+      </button>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <main class="app-main">
+    <header class="app-header">
+      <div style="font-size:.75rem;color:var(--text-muted)" id="breadcrumb">Dashboard</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:8px">
+        <div style="font-size:.8rem;font-weight:600" id="header-user"></div>
+      </div>
+    </header>
+    <div class="page-content" id="page-content">
+      <div style="color:var(--text-muted);padding:40px;text-align:center">Loading…</div>
+    </div>
+  </main>
+</div>
+
+<!-- Modal container -->
+<div id="modal-root"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIG — paste your values here
+// ═══════════════════════════════════════════════════════════
+const CFG = {
+  supabaseUrl:    'https://YOUR_PROJECT.supabase.co',
+  supabaseAnon:   'YOUR_ANON_KEY_HERE',
+  appsScriptUrl:  '',   // set in Settings → Drive (saved to DB)
+  appsScriptToken:'',
+  waBridgeUrl:    'http://localhost:3001',  // set in Settings → WhatsApp
+  smtpHost:       'smtpout.secureserver.net',
+  smtpPort:       465,
+}
+
+// ═══════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════
+const { createClient } = supabase
+const sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon)
+
+let ME = null   // current user profile
+
+const ISSUE_TYPES = ['Hardware Failure','Software Issue','Network Problem','Access & Permissions',
+  'Email Issue','Printer Problem','Installation','Configuration','Performance Issue',
+  'Security Concern','Data Recovery','Training Request','Other']
+const PRIORITIES  = ['Low','Medium','High','Critical']
+const STATUSES    = ['Open','In Progress','Pending','Closed','Archived']
+const ROLES       = ['Admin','Manager','Technical','User','Viewer']
+
+// ── Boot ────────────────────────────────────────────────────
+window.addEventListener('load', async () => {
+  sb.auth.onAuthStateChange(async (event, session) => {
+    if (session?.user) {
+      await loadProfile(session.user.id)
+      showApp()
+      routeFromHash()
+    } else {
+      ME = null
+      showAuth()
+    }
+  })
+})
+
+window.addEventListener('hashchange', routeFromHash)
+
+async function loadProfile(uid) {
+  const { data } = await sb.from('users').select('*').eq('id', uid).single()
+  ME = data
+  if (ME) {
+    document.getElementById('sidebar-user').textContent = ME.name ?? ME.email
+    document.getElementById('header-user').textContent  = ME.name ?? ME.email
+    if (!['Admin','Manager'].includes(ME.role)) {
+      document.getElementById('admin-section').style.display = 'none'
+    }
+  }
+  // Load bridge config from settings
+  const { data: driveSet } = await sb.from('settings').select('value').eq('key','drive').single()
+  if (driveSet?.value?.apps_script_url) CFG.appsScriptUrl   = driveSet.value.apps_script_url
+  if (driveSet?.value?.apps_script_token) CFG.appsScriptToken = driveSet.value.apps_script_token
+  const { data: waSet } = await sb.from('settings').select('value').eq('key','whatsapp').single()
+  if (waSet?.value?.bridge_url) CFG.waBridgeUrl = waSet.value.bridge_url
+}
+
+function showAuth() {
+  document.getElementById('auth-screen').classList.remove('hidden')
+  document.getElementById('app-shell').classList.add('hidden')
+}
+function showApp() {
+  document.getElementById('auth-screen').classList.add('hidden')
+  document.getElementById('app-shell').classList.remove('hidden')
+}
+
+// ═══════════════════════════════════════════════════════════
+// AUTH
+// ═══════════════════════════════════════════════════════════
+async function doLogin() {
+  const email = document.getElementById('login-email').value.trim()
+  const pass  = document.getElementById('login-pass').value
+  const btn   = document.getElementById('login-btn')
+  const err   = document.getElementById('login-error')
+  err.classList.add('hidden')
+  btn.disabled = true; btn.textContent = 'Signing in…'
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass })
+  if (error) {
+    err.textContent = error.message.includes('Invalid') ? 'Invalid email or password.' : error.message
+    err.classList.remove('hidden')
+    btn.disabled = false; btn.textContent = 'Sign In'
+  }
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !document.getElementById('auth-screen').classList.contains('hidden')) doLogin()
+})
+
+async function doLogout() {
+  await sb.auth.signOut()
+}
+
+// ═══════════════════════════════════════════════════════════
+// ROUTER
+// ═══════════════════════════════════════════════════════════
+function nav(page, params={}) {
+  const h = params && Object.keys(params).length
+    ? '#' + page + '?' + new URLSearchParams(params).toString()
+    : '#' + page
+  window.location.hash = h
+}
+
+function routeFromHash() {
+  if (!ME) return
+  const hash   = window.location.hash.slice(1) || 'dashboard'
+  const [page, qs] = hash.split('?')
+  const params = Object.fromEntries(new URLSearchParams(qs || ''))
+
+  // Highlight active sidebar link
+  document.querySelectorAll('.sidebar-link').forEach(l => l.classList.remove('active'))
+  document.querySelectorAll('.sidebar-link').forEach(l => {
+    if (l.getAttribute('onclick')?.includes(`'${page}'`)) l.classList.add('active')
+  })
+
+  document.getElementById('breadcrumb').textContent = {
+    dashboard:'Dashboard', sr:'Service Requests', 'sr-new':'New SR',
+    'sr-detail':'SR Detail', 'sr-edit':'Edit SR', activities:'Activities',
+    routes:'Routes', templates:'Templates', whatsapp:'WhatsApp',
+    users:'Users', reports:'Reports', settings:'Settings',
+  }[page] ?? page
+
+  const pc = document.getElementById('page-content')
+  pc.innerHTML = '<div style="color:var(--text-muted);padding:40px;text-align:center">Loading…</div>'
+
+  const pages = { dashboard:pgDashboard, sr:pgSR, 'sr-new':pgSRNew, 'sr-detail':pgSRDetail,
+    'sr-edit':pgSREdit, activities:pgActivities, routes:pgRoutes, templates:pgTemplates,
+    whatsapp:pgWhatsApp, users:pgUsers, reports:pgReports, settings:pgSettings }
+
+  if (pages[page]) pages[page](pc, params)
+  else pgDashboard(pc, params)
+}
+
+// ═══════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════
+const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) : '—'
+const fmtDateS = iso => iso ? new Date(iso).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'2-digit'}) : '—'
+const greeting = () => { const h=new Date().getHours(); return h<12?'morning':h<17?'afternoon':'evening' }
+
+const PRIORITY_CLS = {Low:'badge-low',Medium:'badge-medium',High:'badge-high',Critical:'badge-critical'}
+const STATUS_CLS   = {'Open':'badge-open','In Progress':'badge-in-progress','Pending':'badge-pending','Closed':'badge-closed','Archived':'badge-archived'}
+const ROLE_CLS     = {Admin:'badge-admin',Manager:'badge-manager',Technical:'badge-technical',User:'badge-user',Viewer:'badge-viewer'}
+
+function priBadge(p) { return `<span class="badge ${PRIORITY_CLS[p]||'badge-low'}"><span class="badge-dot"></span>${p}</span>` }
+function stsBadge(s) { return `<span class="badge ${STATUS_CLS[s]||'badge-closed'}">${s}</span>` }
+function roleBadge(r){ return `<span class="badge ${ROLE_CLS[r]||'badge-user'}">${r}</span>` }
+
+function toast(msg, type='success') {
+  const t = document.createElement('div')
+  t.className = `alert alert-${type}`
+  t.style.cssText = 'position:fixed;bottom:20px;right:20px;z-index:999;min-width:260px;animation:slideUp .2s ease;box-shadow:0 4px 24px rgba(0,0,0,.4)'
+  t.textContent = msg
+  document.body.appendChild(t)
+  setTimeout(() => t.remove(), 3500)
+}
+
+function modal(html, cls='') {
+  document.getElementById('modal-root').innerHTML =
+    `<div class="modal-overlay" onclick="closeModal(event)"><div class="modal ${cls}" onclick="event.stopPropagation()">${html}</div></div>`
+}
+function closeModal(e) {
+  if (!e || e.target.classList.contains('modal-overlay')) {
+    document.getElementById('modal-root').innerHTML = ''
+  }
+}
+function closeModalForce() { document.getElementById('modal-root').innerHTML = '' }
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: DASHBOARD
+// ═══════════════════════════════════════════════════════════
+async function pgDashboard(pc) {
+  const [{ data: stats }, { data: recentSRs }, { count: actCount }, { count: overdueCount }] = await Promise.all([
+    sb.from('dashboard_stats').select('*').single(),
+    sb.from('sr_list').select('*').order('created_at',{ascending:false}).limit(8),
+    sb.from('activities').select('*',{count:'exact',head:true}).eq('status','Open'),
+    sb.from('sr').select('*',{count:'exact',head:true}).eq('status','Open')
+      .lt('reported_at', new Date(Date.now()-48*3600000).toISOString()),
+  ])
+  const s = stats ?? {total_sr:0,open_sr:0,in_progress_sr:0,pending_sr:0,closed_sr:0,critical_open:0}
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div class="page-title">Good ${greeting()}, ${ME?.name?.split(' ')[0] ?? ''}</div>
+        <div class="page-subtitle">Here's what's happening across the system</div>
+      </div>
+      ${ME?.role !== 'Viewer' ? `<button class="btn btn-primary" onclick="nav('sr-new')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+        New SR</button>` : ''}
+    </div>
+    <div class="grid-4 mb-5">
+      ${statCard('Total SRs', s.total_sr, 'var(--blue)')}
+      ${statCard('Open', s.open_sr, 'var(--blue)')}
+      ${statCard('In Progress', s.in_progress_sr, 'var(--accent)')}
+      ${statCard('Pending', s.pending_sr, 'var(--yellow)')}
+      ${statCard('Closed', s.closed_sr, 'var(--text-muted)')}
+      ${statCard('Critical Open', s.critical_open, 'var(--red)')}
+      ${statCard('Overdue 48h', overdueCount??0, 'var(--orange)')}
+      ${statCard('Open Activities', actCount??0, 'var(--purple)')}
+    </div>
+    <div class="card">
+      <div class="flex items-center justify-between mb-4">
+        <h3>Recent Service Requests</h3>
+        <button class="btn btn-ghost btn-sm" onclick="nav('sr')">View all →</button>
+      </div>
+      ${!recentSRs?.length ? emptyState('No service requests yet','Create your first SR to get started') :
+      `<table class="data-table"><thead><tr>
+        <th>SR #</th><th>Title</th><th>Account</th><th>Priority</th><th>Status</th><th>Owner</th><th>Reported</th>
+      </tr></thead><tbody>
+      ${recentSRs.map(sr=>`<tr onclick="nav('sr-detail',{id:'${sr.id}'})">
+        <td><span class="mono text-accent" style="font-size:.75rem;font-weight:600">${sr.sr_number}</span></td>
+        <td class="truncate" style="max-width:220px">${sr.title}</td>
+        <td style="color:var(--text-secondary)">${sr.account??'—'}</td>
+        <td>${priBadge(sr.priority)}</td>
+        <td>${stsBadge(sr.status)}</td>
+        <td style="font-size:.8rem">${sr.owner_name??'—'}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-muted)">${fmtDateS(sr.reported_at)}</td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>`
+}
+
+function statCard(label, value, color) {
+  return `<div class="stat-card" style="--ac:${color}"><div class="stat-value">${value}</div><div class="stat-label">${label}</div></div>`
+}
+function emptyState(title, desc) {
+  return `<div class="empty-state"><div class="empty-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="2"/></svg></div><div class="empty-title">${title}</div><div class="empty-desc">${desc}</div></div>`
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: SR LIST
+// ═══════════════════════════════════════════════════════════
+async function pgSR(pc, params={}) {
+  const q    = params.q ?? ''
+  const sts  = params.status ?? ''
+  const pri  = params.priority ?? ''
+  const page = parseInt(params.page ?? '1')
+  const ps   = 25
+
+  let query = sb.from('sr_list').select('*', {count:'exact'})
+  if (sts) query = query.eq('status', sts)
+  if (pri) query = query.eq('priority', pri)
+  if (q)   query = query.or(`sr_number.ilike.%${q}%,title.ilike.%${q}%,account.ilike.%${q}%,customer_name.ilike.%${q}%`)
+  if (!['Admin','Manager'].includes(ME?.role)) query = query.eq('owner_id', ME?.id)
+
+  const { data: srs, count } = await query.order('created_at',{ascending:false}).range((page-1)*ps, page*ps-1)
+  const totalPages = Math.ceil((count??0)/ps)
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Service Requests</div><div class="page-subtitle">${count??0} total records</div></div>
+      ${ME?.role !== 'Viewer' ? `<button class="btn btn-primary" onclick="nav('sr-new')">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>New SR</button>` : ''}
+    </div>
+    <div class="filter-bar">
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input class="form-input" id="sr-q" value="${q}" placeholder="Search SR#, title, account…"/>
+      </div>
+      <select class="form-select" id="sr-sts" style="width:auto">
+        <option value="">All Status</option>
+        ${STATUSES.map(s=>`<option value="${s}" ${s===sts?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <select class="form-select" id="sr-pri" style="width:auto">
+        <option value="">All Priority</option>
+        ${PRIORITIES.map(p=>`<option value="${p}" ${p===pri?'selected':''}>${p}</option>`).join('')}
+      </select>
+      <button class="btn btn-secondary" onclick="srFilter()">Filter</button>
+      <button class="btn btn-ghost" onclick="nav('sr')">Clear</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${!srs?.length ? emptyState('No service requests found','Try adjusting your filters or create a new SR') :
+      `<table class="data-table"><thead><tr>
+        <th>SR #</th><th>Title</th><th>Account</th><th>Issue Type</th><th>Priority</th><th>Status</th><th>Owner</th><th>Reported</th><th>Updated</th>
+      </tr></thead><tbody>
+      ${srs.map(sr=>`<tr onclick="nav('sr-detail',{id:'${sr.id}'})">
+        <td><span class="mono text-accent" style="font-size:.75rem;font-weight:600">${sr.sr_number}</span></td>
+        <td class="truncate" style="max-width:200px">${sr.title}</td>
+        <td style="color:var(--text-secondary);font-size:.8rem">${sr.account??'—'}</td>
+        <td style="color:var(--text-secondary);font-size:.8rem">${sr.issue_type??'—'}</td>
+        <td>${priBadge(sr.priority)}</td>
+        <td>${stsBadge(sr.status)}</td>
+        <td style="font-size:.8rem"><div style="font-weight:500">${sr.owner_name??'—'}</div></td>
+        <td class="mono" style="font-size:.7rem;color:var(--text-muted)">${fmtDateS(sr.reported_at)}</td>
+        <td class="mono" style="font-size:.7rem;color:var(--text-muted)">${fmtDateS(sr.updated_at)}</td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>
+    ${totalPages>1 ? `<div class="flex items-center gap-2" style="justify-content:center;margin-top:16px">
+      ${page>1 ? `<button class="btn btn-secondary btn-sm" onclick="nav('sr',{q:'${q}',status:'${sts}',priority:'${pri}',page:${page-1}})">← Prev</button>` : ''}
+      <span style="font-size:.8rem;color:var(--text-secondary)">Page ${page} of ${totalPages}</span>
+      ${page<totalPages ? `<button class="btn btn-secondary btn-sm" onclick="nav('sr',{q:'${q}',status:'${sts}',priority:'${pri}',page:${page+1}})">Next →</button>` : ''}
+    </div>` : ''}`
+}
+
+function srFilter() {
+  const q   = document.getElementById('sr-q')?.value ?? ''
+  const sts = document.getElementById('sr-sts')?.value ?? ''
+  const pri = document.getElementById('sr-pri')?.value ?? ''
+  nav('sr', {q, status:sts, priority:pri, page:1})
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: SR DETAIL
+// ═══════════════════════════════════════════════════════════
+async function pgSRDetail(pc, params) {
+  const id = params.id
+  const [{ data:sr }, { data:steps }, { data:history }, { data:templates }] = await Promise.all([
+    sb.from('sr_list').select('*').eq('id', id).single(),
+    sr ? sb.from('route_steps').select('*').eq('route_id', sr?.route_id||'').order('step_order') : Promise.resolve({data:[]}),
+    sb.from('sr_stage_history').select('*,advanced_by_user:users(name)').eq('sr_id',id).order('created_at',{ascending:false}),
+    sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name'),
+  ])
+
+  if (!sr) { pc.innerHTML = '<div class="alert alert-error">SR not found.</div>'; return }
+
+  const { data: routeSteps } = sr.route_id
+    ? await sb.from('route_steps').select('*').eq('route_id', sr.route_id).order('step_order')
+    : { data: [] }
+
+  const isClosed = ['Closed','Archived'].includes(sr.status)
+  const isLastStep = routeSteps?.length > 0 && sr.current_step >= routeSteps.length
+  const canAdvance = sr.route_id && !isClosed && ['Admin','Manager','Technical'].includes(ME?.role) && !isLastStep
+  const canClose   = ['Admin','Manager'].includes(ME?.role)
+  const canEdit    = ['Admin','Manager'].includes(ME?.role) || ME?.id === sr.owner_id
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-ghost btn-sm" onclick="nav('sr')">← Back</button>
+          <span class="mono text-accent" style="font-size:.9rem;font-weight:700">${sr.sr_number}</span>
+          ${stsBadge(sr.status)} ${priBadge(sr.priority)}
+        </div>
+        <div class="page-title" style="margin-top:6px">${sr.title}</div>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${canAdvance ? `<button class="btn btn-secondary" onclick="openAdvanceModal('${id}',${sr.current_step},${routeSteps?.length??0})">→ Next Step</button>` : ''}
+        ${!isClosed && canClose ? `<button class="btn btn-secondary" onclick="openCloseModal('${id}')">✓ Close SR</button>` : ''}
+        ${isClosed && canClose ? `<button class="btn btn-ghost" onclick="reopenSR('${id}')">↩ Reopen</button>` : ''}
+        <button class="btn btn-ghost" onclick="sendEmailModal('${id}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+          Email</button>
+        <button class="btn btn-ghost" style="color:var(--green)" onclick="sendWA('${id}','${sr.customer_contact??''}','${sr.sr_number}','${sr.status}','${sr.customer_name??''}')">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+          WhatsApp</button>
+        ${canEdit ? `<button class="btn btn-ghost" onclick="nav('sr-edit',{id:'${id}'})">Edit</button>` : ''}
+      </div>
+    </div>
+
+    ${routeSteps?.length ? `<div class="card mb-4">
+      <div style="font-size:.75rem;font-weight:600;color:var(--text-muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:12px">Route: ${sr.route_name??''}</div>
+      <div style="display:flex;align-items:center;gap:0;overflow-x:auto;padding-bottom:4px">
+        ${routeSteps.map((step, i) => {
+          const done    = i < sr.current_step
+          const current = i === sr.current_step - 1
+          return `<div style="display:flex;align-items:center;gap:6px">
+            <div title="${step.name}" class="route-step-dot ${done?'done':current?'current':''}" style="cursor:default">${i+1}</div>
+            <span style="font-size:.7rem;color:${done?'var(--accent)':current?'var(--text-primary)':'var(--text-muted)'};max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${step.name}">${step.name}</span>
+            ${i < routeSteps.length-1 ? `<div class="route-connector ${done?'done':''}"></div>` : ''}
+          </div>`
+        }).join('')}
+      </div>
+    </div>` : ''}
+
+    <div class="grid-2 mb-4">
+      <div class="card">
+        <h4 style="margin-bottom:12px;color:var(--text-muted);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase">SR Details</h4>
+        ${detailRow('Issue Type', sr.issue_type??'—')}
+        ${detailRow('Priority', priBadge(sr.priority))}
+        ${detailRow('Status', stsBadge(sr.status))}
+        ${detailRow('Owner', sr.owner_name??'—')}
+        ${detailRow('Reporter', sr.creator_name??'—')}
+        ${detailRow('Reported', fmtDate(sr.reported_at))}
+        ${sr.closed_at ? detailRow('Closed', fmtDate(sr.closed_at)) : ''}
+        ${sr.drive_folder_url ? `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+          <span style="color:var(--text-muted);font-size:.8rem">Drive Folder</span>
+          <a href="${sr.drive_folder_url}" target="_blank" class="btn btn-ghost btn-sm" style="padding:2px 8px;font-size:.75rem">Open →</a>
+        </div>` : ''}
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom:12px;color:var(--text-muted);font-size:.7rem;letter-spacing:.1em;text-transform:uppercase">Customer</h4>
+        ${detailRow('Account', sr.account??'—')}
+        ${detailRow('Contact', sr.customer_name??'—')}
+        ${detailRow('Phone', sr.customer_contact??'—')}
+        ${detailRow('Email', sr.customer_email??'—')}
+      </div>
+    </div>
+
+    <div class="card mb-4">
+      <h4 style="margin-bottom:10px">Issue Description</h4>
+      <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${sr.issue_description??''}</p>
+      ${sr.resolution ? `<div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+        <h4 style="margin-bottom:8px;color:var(--green)">Resolution</h4>
+        <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${sr.resolution}</p>
+      </div>` : ''}
+    </div>
+
+    ${history?.length ? `<div class="card">
+      <h4 style="margin-bottom:12px">Step History</h4>
+      ${history.map(h=>`<div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);font-size:.8rem">
+        <span style="color:var(--text-secondary)">Step ${h.from_step} → Step ${h.to_step}</span>
+        <span style="color:var(--text-muted)">${h.advanced_by_user?.name??'—'} · ${fmtDate(h.created_at)}</span>
+      </div>`).join('')}
+    </div>` : ''}
+  `
+}
+
+function detailRow(label, value) {
+  return `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+    <span style="color:var(--text-muted);font-size:.8rem">${label}</span>
+    <span style="font-size:.8rem;font-weight:500">${value}</span>
+  </div>`
+}
+
+// ── Advance modal (with email prompt) ─────────────────────
+async function openAdvanceModal(srId, currentStep, totalSteps) {
+  const { data: templates } = await sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name')
+  const nextStep = currentStep + 1
+  modal(`
+    <div class="modal-header"><div class="modal-title">→ Advance to Step ${nextStep}</div></div>
+    <div class="modal-body">
+      <div>
+        <div class="form-label" style="margin-bottom:10px">Send an email notification for this step?</div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" id="adv-yes" style="flex:1;justify-content:center" onclick="advEmailYes()">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
+            Yes, send email</button>
+          <button class="btn btn-secondary" id="adv-no" style="flex:1;justify-content:center" onclick="advEmailNo()">Skip</button>
+        </div>
+      </div>
+      <div id="tpl-picker" class="hidden">
+        <div class="form-group">
+          <label class="form-label req">Select Email Template</label>
+          ${!templates?.length
+            ? `<div style="padding:10px 12px;background:var(--bg-elevated);border-radius:var(--radius);font-size:.8rem;color:var(--text-muted)">No active email templates. <button class="btn btn-ghost btn-sm" onclick="nav('templates')">Create one →</button></div>`
+            : `<select class="form-select" id="adv-tpl">${templates.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')}</select>`}
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" id="adv-confirm" disabled onclick="confirmAdvance('${srId}',${currentStep},${totalSteps})">Advance Step</button>
+    </div>
+  `, 'modal-sm')
+}
+
+function advEmailYes() {
+  document.getElementById('adv-yes').className = 'btn btn-primary'
+  document.getElementById('adv-yes').style.flex = '1'
+  document.getElementById('adv-yes').style.justifyContent = 'center'
+  document.getElementById('adv-no').className = 'btn btn-ghost'
+  document.getElementById('adv-no').style.flex = '1'
+  document.getElementById('adv-no').style.justifyContent = 'center'
+  document.getElementById('tpl-picker').classList.remove('hidden')
+  document.getElementById('adv-confirm').disabled = false
+  document.getElementById('adv-confirm').textContent = 'Send Email & Advance'
+  document.getElementById('adv-confirm')._emailChoice = 'yes'
+}
+function advEmailNo() {
+  document.getElementById('adv-no').className = 'btn btn-secondary'
+  document.getElementById('adv-no').style.flex = '1'
+  document.getElementById('adv-no').style.justifyContent = 'center'
+  document.getElementById('adv-yes').className = 'btn btn-ghost'
+  document.getElementById('adv-yes').style.flex = '1'
+  document.getElementById('adv-yes').style.justifyContent = 'center'
+  document.getElementById('tpl-picker').classList.add('hidden')
+  document.getElementById('adv-confirm').disabled = false
+  document.getElementById('adv-confirm').textContent = 'Advance Step'
+  document.getElementById('adv-confirm')._emailChoice = 'no'
+}
+
+async function confirmAdvance(srId, currentStep, totalSteps) {
+  const btn = document.getElementById('adv-confirm')
+  const emailChoice = btn._emailChoice
+  btn.disabled = true; btn.textContent = 'Working…'
+  const nextStep = currentStep + 1
+
+  if (emailChoice === 'yes') {
+    const tplId = document.getElementById('adv-tpl')?.value
+    await sendEmailFromBrowser(srId, tplId)
+  }
+
+  await sb.from('sr').update({ current_step: nextStep, status: 'In Progress' }).eq('id', srId)
+  await sb.from('sr_stage_history').insert({ sr_id:srId, from_step:currentStep, to_step:nextStep, advanced_by:ME.id })
+  await sb.from('audit_log').insert({ action:'SR_STAGE_ADVANCE', user_id:ME.id, target_id:srId, target_type:'sr',
+    description:`Advanced to step ${nextStep}${emailChoice==='yes'?' (email sent)':''}` })
+
+  closeModalForce()
+  toast(emailChoice==='yes' ? '✓ Step advanced · Email sent' : '✓ Step advanced')
+  nav('sr-detail', { id: srId })
+}
+
+// ── Close SR modal ────────────────────────────────────────
+function openCloseModal(srId) {
+  modal(`
+    <div class="modal-header"><div class="modal-title">Close Service Request</div></div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Resolution Summary</label>
+        <textarea class="form-textarea" id="close-res" rows="4" placeholder="Describe how the issue was resolved…"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="closeSR('${srId}')">Confirm Close</button>
+    </div>
+  `, 'modal-sm')
+}
+
+async function closeSR(srId) {
+  const res = document.getElementById('close-res')?.value ?? ''
+  const now = new Date().toISOString()
+  await sb.from('sr').update({ status:'Closed', resolution:res||null, closed_at:now, closed_by:ME.id }).eq('id', srId)
+  await sb.from('audit_log').insert({ action:'SR_CLOSE', user_id:ME.id, target_id:srId, target_type:'sr', description:'Closed SR' })
+  syncSheetsRow(srId, 'Closed', now, res)
+  closeModalForce()
+  toast('✓ SR closed')
+  nav('sr-detail', { id: srId })
+}
+
+async function reopenSR(srId) {
+  await sb.from('sr').update({ status:'Open', closed_at:null, closed_by:null }).eq('id', srId)
+  await sb.from('audit_log').insert({ action:'SR_REOPEN', user_id:ME.id, target_id:srId, target_type:'sr', description:'Reopened SR' })
+  toast('✓ SR reopened')
+  nav('sr-detail', { id: srId })
+}
+
+// ── Email modal (standalone send) ─────────────────────────
+async function sendEmailModal(srId) {
+  const { data: templates } = await sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name')
+  modal(`
+    <div class="modal-header"><div class="modal-title">Send Email</div></div>
+    <div class="modal-body">
+      ${!ME?.smtp_email ? `<div class="alert alert-warning">Your email is not configured. Go to Settings → My Email first.</div>` : ''}
+      <div class="form-group">
+        <label class="form-label">Template (optional)</label>
+        <select class="form-select" id="em-tpl">
+          <option value="">No template — custom message</option>
+          ${templates?.map(t=>`<option value="${t.id}">${t.name}</option>`).join('')??''}
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Subject</label>
+        <input class="form-input" id="em-subj" placeholder="(uses template subject if set)"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Message</label>
+        <textarea class="form-textarea" id="em-body" rows="4" placeholder="(uses template body if template selected)"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="doSendEmail('${srId}')">Send Email</button>
+    </div>
+  `)
+}
+
+async function doSendEmail(srId) {
+  const tplId = document.getElementById('em-tpl')?.value
+  const subj  = document.getElementById('em-subj')?.value
+  const body  = document.getElementById('em-body')?.value
+  closeModalForce()
+  const ok = await sendEmailFromBrowser(srId, tplId||null, subj||null, body||null)
+  toast(ok ? '✓ Email sent' : '✗ Email failed — check your credentials in Settings', ok ? 'success' : 'error')
+}
+
+// ── WhatsApp send ─────────────────────────────────────────
+async function sendWA(srId, phone, srNum, status, custName) {
+  if (!phone) { toast('No phone number on this SR', 'error'); return }
+  const message = `Hello ${custName||'there'}, your service request *${srNum}* status is now: *${status}*. Thank you.`
+  try {
+    const r = await fetch(`${CFG.waBridgeUrl}/send`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ phone, message }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const d = await r.json()
+    if (d.ok) {
+      await sb.from('notification_logs').insert({ channel:'whatsapp', sr_id:srId, recipient:phone, body:message, status:'sent', sent_by:ME.id })
+      toast('✓ WhatsApp sent')
+    } else toast(`✗ ${d.error}`, 'error')
+  } catch(e) { toast('✗ WA bridge offline — start wa-service', 'error') }
+}
+
+// ── Email from browser (SMTP via EmailJS-style or smtpjs.com CDN) ──
+// Since GitHub Pages has no server, we call smtpjs.com to relay with user's credentials
+async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, customBody=null) {
+  // Load user smtp creds
+  const { data: profile } = await sb.from('users').select('smtp_email,smtp_password,name').eq('id',ME.id).single()
+  if (!profile?.smtp_email || !profile?.smtp_password) {
+    toast('Your email credentials are not set. Go to Settings → My Email.', 'error'); return false
+  }
+
+  let recipient = null, subject = customSubject, body = customBody
+
+  if (srId) {
+    const { data: sr } = await sb.from('sr_list').select('*').eq('id', srId).single()
+    if (sr) {
+      recipient = sr.customer_email
+      if (templateId) {
+        const { data: tpl } = await sb.from('templates').select('*').eq('id', templateId).single()
+        if (tpl) {
+          subject = subject || replacePlaceholders(tpl.subject||'', sr, profile.name||profile.smtp_email)
+          body    = body    || replacePlaceholders(tpl.body||'', sr, profile.name||profile.smtp_email)
+        }
+      }
+      subject = subject || `Update on Service Request ${sr.sr_number}`
+      body    = body    || `Your SR ${sr.sr_number} status is now: ${sr.status}`
+    }
+  }
+
+  if (!recipient) { toast('No recipient email on this SR', 'error'); return false }
+
+  // Use smtpjs CDN for browser-based SMTP send
+  try {
+    const sent = await Email.send({
+      SecureToken: null,
+      Host:     CFG.smtpHost,
+      Username: profile.smtp_email,
+      Password: profile.smtp_password,
+      Port:     CFG.smtpPort,
+      To:       recipient,
+      From:     `${profile.name||profile.smtp_email} <${profile.smtp_email}>`,
+      Subject:  subject,
+      Body:     body,
+    })
+    const ok = sent === 'OK'
+    if (ok) {
+      await sb.from('notification_logs').insert({ channel:'email', sr_id:srId, recipient, subject, body, template_id:templateId||null, status:'sent', sent_by:ME.id })
+      await sb.from('audit_log').insert({ action:'EMAIL_SENT', user_id:ME.id, target_id:srId, target_type:'sr', description:`Email sent to ${recipient}` })
+    }
+    return ok
+  } catch(e) { console.error('Email error:', e); return false }
+}
+
+function replacePlaceholders(str, sr, senderName) {
+  return str
+    .replace(/\{\{sr_number\}\}/g,         sr.sr_number??'')
+    .replace(/\{\{customer_name\}\}/g,     sr.customer_name??'')
+    .replace(/\{\{owner_name\}\}/g,        sr.owner_name??'')
+    .replace(/\{\{issue_type\}\}/g,        sr.issue_type??'')
+    .replace(/\{\{issue_description\}\}/g, sr.issue_description??'')
+    .replace(/\{\{status\}\}/g,            sr.status??'')
+    .replace(/\{\{priority\}\}/g,          sr.priority??'')
+    .replace(/\{\{resolution\}\}/g,        sr.resolution??'')
+    .replace(/\{\{company_name\}\}/g,      senderName)
+    .replace(/\{\{account\}\}/g,           sr.account??'')
+}
+
+// ─── Sheets sync (non-blocking, calls Apps Script directly) ──
+async function syncSheetsRow(srId, status, resolvedAt, resolution) {
+  if (!CFG.appsScriptUrl) return
+  const { data: sr } = await sb.from('sr_list').select('*').eq('id', srId).single()
+  if (!sr) return
+  fetch(CFG.appsScriptUrl, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token:CFG.appsScriptToken, action:'update_sr_row',
+      sr_number:sr.sr_number, status, resolved_at:resolvedAt, resolution, owner_name:sr.owner_name }),
+  }).catch(()=>{})
+}
+
+async function createDriveFolder(srId) {
+  if (!CFG.appsScriptUrl) return
+  const { data: sr } = await sb.from('sr_list').select('*').eq('id', srId).single()
+  if (!sr) return
+  const year = new Date().getFullYear().toString()
+  fetch(CFG.appsScriptUrl, {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ token:CFG.appsScriptToken, action:'create_sr_folder', sr_number:sr.sr_number, year }),
+  }).then(r=>r.json()).then(async d => {
+    if (d.ok) {
+      await sb.from('sr').update({ drive_folder_url:d.folder_url, drive_folder_id:d.folder_id }).eq('id', srId)
+      fetch(CFG.appsScriptUrl, {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({ token:CFG.appsScriptToken, action:'append_sr_row',
+          sr_number:sr.sr_number, status:sr.status, reported_at:sr.reported_at,
+          account:sr.account, customer_name:sr.customer_name, customer_contact:sr.customer_contact,
+          customer_email:sr.customer_email, issue_type:sr.issue_type,
+          issue_description:sr.issue_description, owner_name:sr.owner_name,
+          creator_name:sr.creator_name, priority:sr.priority, route_name:sr.route_name,
+          folder_url:d.folder_url }),
+      }).catch(()=>{})
+    }
+  }).catch(()=>{})
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: NEW SR
+// ═══════════════════════════════════════════════════════════
+async function pgSRNew(pc) {
+  const [{ data: users }, { data: routes }] = await Promise.all([
+    sb.from('users').select('*').eq('status','active').order('name'),
+    sb.from('routes').select('*').eq('is_active',true).order('name'),
+  ])
+  const canChooseOwner = ['Admin','Manager'].includes(ME?.role)
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">New Service Request</div></div>
+      <button class="btn btn-ghost" onclick="nav('sr')">← Cancel</button>
+    </div>
+    <div style="max-width:760px">
+      <div id="sr-new-error" class="hidden"></div>
+      <div class="card mb-4">
+        <h3 style="margin-bottom:16px">SR Information</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label req">Title / Summary</label>
+            <input class="form-input" id="n-title" placeholder="Brief description of the issue…"/></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Issue Type</label>
+              <select class="form-select" id="n-itype">
+                <option value="">Select type…</option>
+                ${ISSUE_TYPES.map(t=>`<option>${t}</option>`).join('')}
+              </select></div>
+            <div class="form-group"><label class="form-label req">Priority</label>
+              <select class="form-select" id="n-priority">
+                ${PRIORITIES.map(p=>`<option ${p==='Medium'?'selected':''}>${p}</option>`).join('')}
+              </select></div>
+          </div>
+          <div class="form-group"><label class="form-label req">Issue Description</label>
+            <textarea class="form-textarea" id="n-desc" rows="4" placeholder="Detailed description…"></textarea></div>
+        </div>
+      </div>
+      <div class="card mb-4">
+        <h3 style="margin-bottom:16px">Customer Details</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label">Account / Company</label>
+            <input class="form-input" id="n-account" placeholder="Company or account name"/></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Contact Name</label>
+              <input class="form-input" id="n-cname" placeholder="Customer full name"/></div>
+            <div class="form-group"><label class="form-label">Contact Number</label>
+              <input class="form-input" id="n-cphone" type="tel" placeholder="+91 9999999999"/></div>
+          </div>
+          <div class="form-group"><label class="form-label">Email Address</label>
+            <input class="form-input" id="n-cemail" type="email" placeholder="customer@company.com"/></div>
+        </div>
+      </div>
+      <div class="card mb-4">
+        <h3 style="margin-bottom:16px">Assignment & Route</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label req">Owner</label>
+            ${canChooseOwner
+              ? `<select class="form-select" id="n-owner">
+                  <option value="">Select owner…</option>
+                  ${users?.map(u=>`<option value="${u.id}" ${u.id===ME.id?'selected':''}>${u.name} (${u.role})</option>`).join('')}
+                 </select>`
+              : `<input class="form-input" value="${ME?.name??''}" disabled style="opacity:.7"/>
+                 <div class="form-hint">SR will be assigned to you</div>`}
+          </div>
+          <div class="form-group"><label class="form-label">Route (optional)</label>
+            <select class="form-select" id="n-route">
+              <option value="">No route — manual handling</option>
+              ${routes?.map(r=>`<option value="${r.id}">${r.name}</option>`).join('')}
+            </select>
+            <div class="form-hint">Routes define step-by-step workflow</div>
+          </div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary btn-lg" onclick="submitNewSR()">Create Service Request</button>
+        <button class="btn btn-ghost" onclick="nav('sr')">Cancel</button>
+      </div>
+    </div>`
+}
+
+async function submitNewSR() {
+  const title = document.getElementById('n-title')?.value?.trim()
+  const desc  = document.getElementById('n-desc')?.value?.trim()
+  const errEl = document.getElementById('sr-new-error')
+  if (!title || !desc) {
+    errEl.className = 'alert alert-error'
+    errEl.textContent = 'Title and description are required.'
+    return
+  }
+  errEl.className = 'hidden'
+  const canChooseOwner = ['Admin','Manager'].includes(ME?.role)
+  const { data: sr, error } = await sb.from('sr').insert({
+    title, issue_description:desc,
+    account:         document.getElementById('n-account')?.value||null,
+    customer_name:   document.getElementById('n-cname')?.value||null,
+    customer_contact:document.getElementById('n-cphone')?.value||null,
+    customer_email:  document.getElementById('n-cemail')?.value||null,
+    issue_type:      document.getElementById('n-itype')?.value||null,
+    priority:        document.getElementById('n-priority')?.value||'Medium',
+    owner_id:        canChooseOwner ? (document.getElementById('n-owner')?.value||ME.id) : ME.id,
+    creator_id:      ME.id,
+    route_id:        document.getElementById('n-route')?.value||null,
+    status:          'Open',
+  }).select().single()
+
+  if (error) { errEl.className='alert alert-error'; errEl.textContent=error.message; return }
+  await sb.from('audit_log').insert({ action:'SR_CREATE', user_id:ME.id, target_id:sr.id, target_type:'sr', description:`Created SR ${sr.sr_number}` })
+  createDriveFolder(sr.id)
+  toast('✓ SR created')
+  nav('sr-detail', { id: sr.id })
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: EDIT SR
+// ═══════════════════════════════════════════════════════════
+async function pgSREdit(pc, params) {
+  const id = params.id
+  const [{ data: sr }, { data: users }, { data: routes }] = await Promise.all([
+    sb.from('sr_list').select('*').eq('id', id).single(),
+    sb.from('users').select('*').eq('status','active').order('name'),
+    sb.from('routes').select('*').eq('is_active',true).order('name'),
+  ])
+  if (!sr) { pc.innerHTML = '<div class="alert alert-error">SR not found.</div>'; return }
+  const canReassign = ['Admin','Manager'].includes(ME?.role)
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Edit SR — ${sr.sr_number}</div></div>
+      <button class="btn btn-ghost" onclick="nav('sr-detail',{id:'${id}'})">← Cancel</button>
+    </div>
+    <div style="max-width:760px">
+      <div id="edit-error" class="hidden"></div>
+      <div class="card mb-4">
+        <h3 style="margin-bottom:16px">SR Information</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label req">Title / Summary</label>
+            <input class="form-input" id="e-title" value="${escHtml(sr.title??'')}"/></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Issue Type</label>
+              <select class="form-select" id="e-itype">
+                <option value="">Select type…</option>
+                ${ISSUE_TYPES.map(t=>`<option ${t===sr.issue_type?'selected':''}>${t}</option>`).join('')}
+              </select></div>
+            <div class="form-group"><label class="form-label">Priority</label>
+              <select class="form-select" id="e-priority">
+                ${PRIORITIES.map(p=>`<option ${p===sr.priority?'selected':''}>${p}</option>`).join('')}
+              </select></div>
+          </div>
+          <div class="form-group"><label class="form-label">Status</label>
+            <select class="form-select" id="e-status">
+              ${STATUSES.map(s=>`<option ${s===sr.status?'selected':''}>${s}</option>`).join('')}
+            </select></div>
+          <div class="form-group"><label class="form-label req">Issue Description</label>
+            <textarea class="form-textarea" id="e-desc" rows="4">${escHtml(sr.issue_description??'')}</textarea></div>
+        </div>
+      </div>
+      <div class="card mb-4">
+        <h3 style="margin-bottom:16px">Customer Details</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label">Account / Company</label>
+            <input class="form-input" id="e-account" value="${escHtml(sr.account??'')}"/></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Contact Name</label>
+              <input class="form-input" id="e-cname" value="${escHtml(sr.customer_name??'')}"/></div>
+            <div class="form-group"><label class="form-label">Contact Number</label>
+              <input class="form-input" id="e-cphone" value="${escHtml(sr.customer_contact??'')}"/></div>
+          </div>
+          <div class="form-group"><label class="form-label">Email Address</label>
+            <input class="form-input" id="e-cemail" type="email" value="${escHtml(sr.customer_email??'')}"/></div>
+        </div>
+      </div>
+      <div class="card mb-4">
+        <h3 style="margin-bottom:16px">Assignment & Route</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          ${canReassign ? `<div class="form-group"><label class="form-label">Owner</label>
+            <select class="form-select" id="e-owner">
+              ${users?.map(u=>`<option value="${u.id}" ${u.id===sr.owner_id?'selected':''}>${u.name} (${u.role})</option>`).join('')}
+            </select></div>` : ''}
+          <div class="form-group"><label class="form-label">Route</label>
+            <select class="form-select" id="e-route">
+              <option value="">No route — manual handling</option>
+              ${routes?.map(r=>`<option value="${r.id}" ${r.id===sr.route_id?'selected':''}>${r.name}</option>`).join('')}
+            </select></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px">
+        <button class="btn btn-primary btn-lg" onclick="submitEditSR('${id}')">Save Changes</button>
+        <button class="btn btn-ghost" onclick="nav('sr-detail',{id:'${id}'})">Cancel</button>
+      </div>
+    </div>`
+}
+
+async function submitEditSR(id) {
+  const title = document.getElementById('e-title')?.value?.trim()
+  const desc  = document.getElementById('e-desc')?.value?.trim()
+  const errEl = document.getElementById('edit-error')
+  if (!title||!desc) { errEl.className='alert alert-error'; errEl.textContent='Title and description are required.'; return }
+  errEl.className='hidden'
+  const canReassign = ['Admin','Manager'].includes(ME?.role)
+  const { error } = await sb.from('sr').update({
+    title, issue_description:desc,
+    account:         document.getElementById('e-account')?.value||null,
+    customer_name:   document.getElementById('e-cname')?.value||null,
+    customer_contact:document.getElementById('e-cphone')?.value||null,
+    customer_email:  document.getElementById('e-cemail')?.value||null,
+    issue_type:      document.getElementById('e-itype')?.value||null,
+    priority:        document.getElementById('e-priority')?.value,
+    status:          document.getElementById('e-status')?.value,
+    owner_id:        canReassign ? (document.getElementById('e-owner')?.value||undefined) : undefined,
+    route_id:        document.getElementById('e-route')?.value||null,
+  }).eq('id', id)
+  if (error) { errEl.className='alert alert-error'; errEl.textContent=error.message; return }
+  await sb.from('audit_log').insert({ action:'SR_EDIT', user_id:ME.id, target_id:id, target_type:'sr', description:'Edited SR' })
+  toast('✓ SR updated')
+  nav('sr-detail', { id })
+}
+
+function escHtml(str) {
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: ACTIVITIES
+// ═══════════════════════════════════════════════════════════
+const ACT_TYPES = ['Call','Follow-up','Site Visit','Internal Reminder','Coordination','Pre-Sales','Support Note','Other']
+
+async function pgActivities(pc, params={}) {
+  const filter = params.status ?? ''
+  const q = params.q ?? ''
+  const [{ data: acts }, { data: users }] = await Promise.all([
+    sb.from('activities').select('*,owner:users(name)').order('created_at',{ascending:false}).limit(100),
+    sb.from('users').select('*').eq('status','active').order('name'),
+  ])
+
+  const filtered = (acts??[])
+    .filter(a => !filter || a.status===filter)
+    .filter(a => !q || a.title.toLowerCase().includes(q.toLowerCase()) || (a.account??'').toLowerCase().includes(q.toLowerCase()))
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Activities</div><div class="page-subtitle">${filtered.length} records</div></div>
+      <button class="btn btn-primary" onclick="openNewActivity(${JSON.stringify(users??[]).replace(/"/g,'&quot;')})">+ New Activity</button>
+    </div>
+    <div class="filter-bar">
+      <div class="search-wrap">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input class="form-input" id="act-q" value="${q}" placeholder="Search title, account…"/>
+      </div>
+      <select class="form-select" id="act-f" style="width:auto">
+        <option value="">All Status</option>
+        ${['Open','In Progress','Done','Cancelled'].map(s=>`<option value="${s}" ${s===filter?'selected':''}>${s}</option>`).join('')}
+      </select>
+      <button class="btn btn-secondary" onclick="nav('activities',{q:document.getElementById('act-q').value,status:document.getElementById('act-f').value})">Filter</button>
+      <button class="btn btn-ghost" onclick="nav('activities')">Clear</button>
+    </div>
+    <div class="card" style="padding:0">
+      ${!filtered.length ? emptyState('No activities found','Create your first activity') :
+      `<table class="data-table"><thead><tr>
+        <th>Title</th><th>Type</th><th>Account</th><th>Contact</th><th>Status</th><th>Owner</th><th>Due</th><th>Actions</th>
+      </tr></thead><tbody>
+      ${filtered.map(a=>`<tr>
+        <td style="font-weight:500">${escHtml(a.title)}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">${a.type}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">${a.account??'—'}</td>
+        <td style="font-size:.8rem">${a.contact_name??'—'}</td>
+        <td><span class="badge ${STATUS_CLS[a.status]||'badge-closed'}">${a.status}</span></td>
+        <td style="font-size:.8rem">${a.owner?.name??'—'}</td>
+        <td class="mono" style="font-size:.72rem;color:var(--text-muted)">${a.due_date?fmtDateS(a.due_date):'—'}</td>
+        <td>
+          ${a.status!=='Done'?`<button class="btn btn-ghost btn-sm" onclick="updateActStatus('${a.id}','Done')">✓ Done</button>`:''}
+          ${a.status==='Open'?`<button class="btn btn-ghost btn-sm" onclick="updateActStatus('${a.id}','Cancelled')">✕</button>`:''}
+        </td>
+      </tr>`).join('')}
+      </tbody></table>`}
+    </div>`
+}
+
+async function updateActStatus(id, status) {
+  await sb.from('activities').update({ status, closed_at: status==='Done' ? new Date().toISOString() : null }).eq('id', id)
+  toast(`✓ Marked as ${status}`)
+  nav('activities')
+}
+
+function openNewActivity(users) {
+  modal(`
+    <div class="modal-header"><div class="modal-title">New Activity</div></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label req">Title</label>
+        <input class="form-input" id="na-title" placeholder="Activity summary…"/></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Type</label>
+          <select class="form-select" id="na-type">
+            ${ACT_TYPES.map(t=>`<option>${t}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="form-label">Owner</label>
+          <select class="form-select" id="na-owner">
+            ${users.map(u=>`<option value="${u.id}" ${u.id===ME.id?'selected':''}>${u.name}</option>`).join('')}
+          </select></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Account</label>
+          <input class="form-input" id="na-account" placeholder="Company…"/></div>
+        <div class="form-group"><label class="form-label">Contact</label>
+          <input class="form-input" id="na-contact" placeholder="Name…"/></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Phone</label>
+          <input class="form-input" id="na-phone" type="tel" placeholder="+91…"/></div>
+        <div class="form-group"><label class="form-label">Due Date</label>
+          <input class="form-input" id="na-due" type="date"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Notes</label>
+        <textarea class="form-textarea" id="na-notes" rows="3"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitNewActivity()">Create Activity</button>
+    </div>
+  `)
+}
+
+async function submitNewActivity() {
+  const title = document.getElementById('na-title')?.value?.trim()
+  if (!title) return
+  await sb.from('activities').insert({
+    title, type:document.getElementById('na-type')?.value,
+    account:document.getElementById('na-account')?.value||null,
+    contact_name:document.getElementById('na-contact')?.value||null,
+    contact_phone:document.getElementById('na-phone')?.value||null,
+    due_date:document.getElementById('na-due')?.value||null,
+    notes:document.getElementById('na-notes')?.value||null,
+    owner_id:document.getElementById('na-owner')?.value||ME.id,
+    creator_id:ME.id, status:'Open',
+  })
+  closeModalForce(); toast('✓ Activity created'); nav('activities')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: ROUTES
+// ═══════════════════════════════════════════════════════════
+async function pgRoutes(pc) {
+  const { data: routes } = await sb.from('routes').select('*').order('name')
+  let selectedRoute = null, selectedSteps = []
+
+  render()
+
+  function render() {
+    pc.innerHTML = `
+      <div class="page-header">
+        <div><div class="page-title">Routes</div></div>
+        ${['Admin','Manager'].includes(ME?.role) ? `<button class="btn btn-primary" onclick="openNewRoute()">+ New Route</button>` : ''}
+      </div>
+      <div class="grid-2">
+        <div class="card">
+          <h4 style="margin-bottom:12px">All Routes</h4>
+          ${!routes?.length ? '<div style="color:var(--text-muted);font-size:.85rem">No routes yet.</div>' :
+          routes.map(r=>`<div onclick="selectRoute('${r.id}')" style="display:flex;align-items:center;justify-content:space-between;padding:10px;border-radius:var(--radius);cursor:pointer;background:${selectedRoute?.id===r.id?'var(--accent-dim)':'transparent'};margin-bottom:4px;border:1px solid ${selectedRoute?.id===r.id?'var(--accent)':'transparent'}">
+            <div>
+              <div style="font-weight:600;font-size:.875rem">${r.name}</div>
+              ${r.description?`<div style="font-size:.75rem;color:var(--text-muted)">${r.description}</div>`:''}
+            </div>
+            <div style="display:flex;align-items:center;gap:6px">
+              <span class="badge ${r.is_active?'badge-in-progress':'badge-closed'}">${r.is_active?'Active':'Inactive'}</span>
+              ${['Admin','Manager'].includes(ME?.role) ? `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();toggleRoute('${r.id}',${r.is_active})">${r.is_active?'Disable':'Enable'}</button>
+              <button class="btn btn-ghost btn-sm text-red" onclick="event.stopPropagation();deleteRoute('${r.id}')">Delete</button>` : ''}
+            </div>
+          </div>`).join('')}
+        </div>
+        <div class="card" id="steps-panel">
+          ${selectedRoute
+            ? `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+                <h4>${selectedRoute.name} — Steps</h4>
+                ${['Admin','Manager'].includes(ME?.role)?`<button class="btn btn-secondary btn-sm" onclick="openAddStep('${selectedRoute.id}')">+ Add Step</button>`:''}
+              </div>
+              ${!selectedSteps.length ? '<div style="color:var(--text-muted);font-size:.85rem">No steps yet.</div>' :
+              selectedSteps.map((s,i)=>`<div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius);margin-bottom:6px">
+                <div class="route-step-dot">${s.step_order}</div>
+                <div style="flex:1">
+                  <div style="font-weight:600;font-size:.85rem">${s.name}</div>
+                  <div style="font-size:.75rem;color:var(--text-muted)">${s.assigned_role} ${s.sla_hours?`· SLA ${s.sla_hours}h`:''}</div>
+                </div>
+                ${['Admin','Manager'].includes(ME?.role)?`
+                <button class="btn btn-ghost btn-sm" onclick="moveStep('${s.id}','up','${selectedRoute.id}')" ${i===0?'disabled':''}>↑</button>
+                <button class="btn btn-ghost btn-sm" onclick="moveStep('${s.id}','down','${selectedRoute.id}')" ${i===selectedSteps.length-1?'disabled':''}>↓</button>
+                <button class="btn btn-ghost btn-sm text-red" onclick="deleteStep('${s.id}','${selectedRoute.id}')">✕</button>`:''}
+              </div>`).join('')}`
+            : '<div style="color:var(--text-muted);font-size:.85rem">Select a route to see its steps.</div>'}
+        </div>
+      </div>`
+  }
+
+  window.selectRoute = async (id) => {
+    selectedRoute = routes.find(r=>r.id===id)
+    const { data } = await sb.from('route_steps').select('*').eq('route_id', id).order('step_order')
+    selectedSteps = data ?? []
+    render()
+  }
+  window.toggleRoute = async (id, current) => {
+    await sb.from('routes').update({ is_active: !current }).eq('id', id)
+    const r = routes.find(r=>r.id===id); if (r) r.is_active = !current
+    render()
+  }
+  window.deleteRoute = async (id) => {
+    if (!confirm('Delete this route and all its steps?')) return
+    await sb.from('routes').delete().eq('id', id)
+    const idx = routes.findIndex(r=>r.id===id); if (idx>-1) routes.splice(idx,1)
+    if (selectedRoute?.id===id) { selectedRoute=null; selectedSteps=[] }
+    render()
+  }
+  window.deleteStep = async (stepId, routeId) => {
+    await sb.from('route_steps').delete().eq('id', stepId)
+    selectRoute(routeId)
+  }
+  window.moveStep = async (stepId, dir, routeId) => {
+    const idx = selectedSteps.findIndex(s=>s.id===stepId)
+    const target = dir==='up' ? idx-1 : idx+1
+    if (target<0||target>=selectedSteps.length) return
+    const a=selectedSteps[idx], b=selectedSteps[target]
+    await Promise.all([
+      sb.from('route_steps').update({ step_order:b.step_order }).eq('id', a.id),
+      sb.from('route_steps').update({ step_order:a.step_order }).eq('id', b.id),
+    ])
+    selectRoute(routeId)
+  }
+}
+
+function openNewRoute() {
+  modal(`
+    <div class="modal-header"><div class="modal-title">New Route</div></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label req">Route Name</label>
+        <input class="form-input" id="nr-name" placeholder="e.g. Standard IT Support"/></div>
+      <div class="form-group"><label class="form-label">Description</label>
+        <textarea class="form-textarea" id="nr-desc" rows="2"></textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitNewRoute()">Create Route</button>
+    </div>
+  `, 'modal-sm')
+}
+
+async function submitNewRoute() {
+  const name = document.getElementById('nr-name')?.value?.trim()
+  if (!name) return
+  await sb.from('routes').insert({ name, description:document.getElementById('nr-desc')?.value||null, created_by:ME.id })
+  closeModalForce(); toast('✓ Route created'); nav('routes')
+}
+
+function openAddStep(routeId) {
+  modal(`
+    <div class="modal-header"><div class="modal-title">Add Step</div></div>
+    <div class="modal-body">
+      <div class="form-group"><label class="form-label req">Step Name</label>
+        <input class="form-input" id="as-name" placeholder="e.g. Initial Assessment"/></div>
+      <div class="form-group"><label class="form-label">Description</label>
+        <textarea class="form-textarea" id="as-desc" rows="2"></textarea></div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Assigned Role</label>
+          <select class="form-select" id="as-role">
+            ${ROLES.map(r=>`<option ${r==='Technical'?'selected':''}>${r}</option>`).join('')}
+          </select></div>
+        <div class="form-group"><label class="form-label">SLA Hours</label>
+          <input class="form-input" id="as-sla" type="number" placeholder="e.g. 24"/></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddStep('${routeId}')">Add Step</button>
+    </div>
+  `, 'modal-sm')
+}
+
+async function submitAddStep(routeId) {
+  const name = document.getElementById('as-name')?.value?.trim()
+  if (!name) return
+  const { data: existing } = await sb.from('route_steps').select('step_order').eq('route_id',routeId).order('step_order',{ascending:false}).limit(1)
+  const nextOrder = (existing?.[0]?.step_order ?? 0) + 1
+  await sb.from('route_steps').insert({
+    route_id:routeId, step_order:nextOrder, name,
+    description:document.getElementById('as-desc')?.value||null,
+    assigned_role:document.getElementById('as-role')?.value||'Technical',
+    sla_hours:document.getElementById('as-sla')?.value ? parseInt(document.getElementById('as-sla').value) : null,
+    is_required:true,
+  })
+  closeModalForce(); toast('✓ Step added'); nav('routes')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: TEMPLATES
+// ═══════════════════════════════════════════════════════════
+async function pgTemplates(pc) {
+  const { data: templates } = await sb.from('templates').select('*').order('name')
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Templates</div><div class="page-subtitle">Email and WhatsApp message templates</div></div>
+      ${['Admin','Manager'].includes(ME?.role)?`<button class="btn btn-primary" onclick="openNewTemplate()">+ New Template</button>`:''}
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px">
+      ${!templates?.length ? emptyState('No templates yet','Create email or WhatsApp templates to use in SR actions') :
+      templates.map(t=>`<div class="card" style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px">
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span style="font-weight:600">${escHtml(t.name)}</span>
+            <span class="badge ${t.type==='email'?'badge-open':'badge-in-progress'}">${t.type}</span>
+            <span class="badge ${t.is_active?'badge-in-progress':'badge-closed'}">${t.is_active?'Active':'Inactive'}</span>
+          </div>
+          ${t.subject?`<div style="font-size:.8rem;color:var(--text-secondary);margin-bottom:4px">Subject: ${escHtml(t.subject)}</div>`:''}
+          <div style="font-size:.8rem;color:var(--text-muted);white-space:pre-wrap;max-height:80px;overflow:hidden">${escHtml((t.body??'').slice(0,200))}${(t.body?.length??0)>200?'…':''}</div>
+        </div>
+        ${['Admin','Manager'].includes(ME?.role)?`<div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn btn-ghost btn-sm" onclick="openEditTemplate(${JSON.stringify(t).replace(/"/g,'&quot;')})">Edit</button>
+          <button class="btn btn-ghost btn-sm" onclick="toggleTemplate('${t.id}',${t.is_active})">${t.is_active?'Disable':'Enable'}</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteTemplate('${t.id}')">Delete</button>
+        </div>`:''}
+      </div>`).join('')}
+    </div>
+    <div class="card" style="margin-top:16px;font-size:.8rem;color:var(--text-muted)">
+      <strong style="color:var(--text-secondary)">Available placeholders:</strong>
+      {{sr_number}} {{customer_name}} {{owner_name}} {{issue_type}} {{status}} {{priority}} {{account}} {{resolution}} {{company_name}}
+    </div>`
+}
+
+function openNewTemplate(tpl=null) {
+  modal(`
+    <div class="modal-header"><div class="modal-title">${tpl?'Edit':'New'} Template</div></div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group"><label class="form-label req">Name</label>
+          <input class="form-input" id="nt-name" value="${tpl?escHtml(tpl.name):''}" placeholder="Template name…"/></div>
+        <div class="form-group"><label class="form-label req">Type</label>
+          <select class="form-select" id="nt-type">
+            <option value="email" ${tpl?.type==='email'?'selected':''}>Email</option>
+            <option value="whatsapp" ${tpl?.type==='whatsapp'?'selected':''}>WhatsApp</option>
+          </select></div>
+      </div>
+      <div class="form-group"><label class="form-label">Subject (email only)</label>
+        <input class="form-input" id="nt-subj" value="${tpl?escHtml(tpl.subject??''):''}" placeholder="Email subject…"/></div>
+      <div class="form-group"><label class="form-label req">Body / Message</label>
+        <textarea class="form-textarea" id="nt-body" rows="6" placeholder="Message body — use {{sr_number}}, {{customer_name}}, etc.">${tpl?escHtml(tpl.body??''):''}</textarea></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitTemplate('${tpl?.id??''}')">Save Template</button>
+    </div>
+  `)
+}
+function openEditTemplate(tpl) { openNewTemplate(tpl) }
+
+async function submitTemplate(existingId) {
+  const name = document.getElementById('nt-name')?.value?.trim()
+  const body = document.getElementById('nt-body')?.value?.trim()
+  if (!name||!body) return
+  const data = {
+    name, body, type:document.getElementById('nt-type')?.value,
+    subject:document.getElementById('nt-subj')?.value||null, is_active:true,
+  }
+  if (existingId) await sb.from('templates').update(data).eq('id', existingId)
+  else await sb.from('templates').insert({ ...data, created_by:ME.id })
+  closeModalForce(); toast('✓ Template saved'); nav('templates')
+}
+
+async function toggleTemplate(id, current) {
+  await sb.from('templates').update({ is_active:!current }).eq('id', id)
+  nav('templates')
+}
+async function deleteTemplate(id) {
+  if (!confirm('Delete this template?')) return
+  await sb.from('templates').delete().eq('id', id)
+  toast('Template deleted'); nav('templates')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: WHATSAPP
+// ═══════════════════════════════════════════════════════════
+async function pgWhatsApp(pc) {
+  let waStatus = { connected:false }
+  let pollInterval = null
+
+  async function fetchWAStatus() {
+    try {
+      const r = await fetch(`${CFG.waBridgeUrl}/status`, { signal:AbortSignal.timeout(4000) })
+      waStatus = await r.json()
+    } catch { waStatus = { connected:false, error:'Bridge offline' } }
+    renderWA()
+  }
+
+  function renderWA() {
+    const connected = waStatus.connected
+    document.getElementById('wa-content').innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px">
+        <div style="width:10px;height:10px;border-radius:50%;background:${connected?'var(--green)':'var(--text-muted)'};box-shadow:${connected?'0 0 8px var(--green)':'none'}"></div>
+        <span style="font-weight:600">${connected ? `Connected ${waStatus.phone?'· '+waStatus.phone:''}` : 'Disconnected'}</span>
+        <button class="btn btn-secondary btn-sm" onclick="${connected?`waDisconnect()`:`waConnect()`}" style="margin-left:auto">
+          ${connected ? 'Disconnect' : 'Connect / Get QR'}
+        </button>
+      </div>
+      ${waStatus.qr ? `<div style="text-align:center;padding:20px">
+        <p style="color:var(--text-muted);font-size:.85rem;margin-bottom:16px">Scan this QR with WhatsApp on your phone</p>
+        <img src="${waStatus.qr}" style="max-width:260px;border-radius:var(--radius-lg);border:4px solid white"/>
+      </div>` : ''}
+      ${connected ? `
+      <hr style="border:none;border-top:1px solid var(--border);margin:20px 0"/>
+      <h4 style="margin-bottom:12px">Send Test Message</h4>
+      <div style="display:flex;flex-direction:column;gap:12px;max-width:480px">
+        <div class="form-group"><label class="form-label req">Phone (with country code)</label>
+          <input class="form-input" id="wa-phone" placeholder="+91 9999999999"/></div>
+        <div class="form-group"><label class="form-label req">Message</label>
+          <textarea class="form-textarea" id="wa-msg" rows="3" placeholder="Type your message…"></textarea></div>
+        <button class="btn btn-primary" onclick="waSendDirect()">Send</button>
+        <div id="wa-send-status"></div>
+      </div>` : `<div class="alert alert-info" style="margin-top:12px">
+        Start the WhatsApp bridge service: <code style="font-family:var(--font-mono);background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px">cd wa-service && node bridge.js</code>
+        Then click Connect to get a QR code.
+      </div>`}`
+  }
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">WhatsApp</div><div class="page-subtitle">QR session for SR notifications and messaging</div></div>
+    </div>
+    <div class="card" style="max-width:600px" id="wa-content">Loading…</div>`
+
+  fetchWAStatus()
+  pollInterval = setInterval(fetchWAStatus, 4000)
+
+  // Cleanup polling when navigating away
+  const orig = window.onhashchange
+  window.onhashchange = (e) => { clearInterval(pollInterval); if (orig) orig(e); routeFromHash() }
+
+  window.waConnect = async () => {
+    try { await fetch(`${CFG.waBridgeUrl}/connect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
+    setTimeout(fetchWAStatus, 1500)
+  }
+  window.waDisconnect = async () => {
+    try { await fetch(`${CFG.waBridgeUrl}/disconnect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
+    waStatus = { connected:false }; renderWA()
+  }
+  window.waSendDirect = async () => {
+    const phone = document.getElementById('wa-phone')?.value
+    const message = document.getElementById('wa-msg')?.value
+    if (!phone||!message) return
+    const el = document.getElementById('wa-send-status')
+    el.textContent = 'Sending…'; el.className = ''
+    try {
+      const r = await fetch(`${CFG.waBridgeUrl}/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,message}),signal:AbortSignal.timeout(15000)})
+      const d = await r.json()
+      el.textContent = d.ok ? '✓ Sent!' : `✗ ${d.error}`
+      el.className = d.ok ? 'text-green' : 'text-red'
+    } catch(e) { el.textContent='✗ Bridge offline'; el.className='text-red' }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: USERS (Admin)
+// ═══════════════════════════════════════════════════════════
+async function pgUsers(pc) {
+  if (!['Admin','Manager'].includes(ME?.role)) { pc.innerHTML='<div class="alert alert-error">Access denied.</div>'; return }
+  const { data: users } = await sb.from('users').select('*').order('name')
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Users</div><div class="page-subtitle">${users?.length??0} team members</div></div>
+      <button class="btn btn-primary" onclick="openInviteUser()">+ Invite User</button>
+    </div>
+    <div class="card" style="padding:0">
+      <table class="data-table"><thead><tr>
+        <th>Name</th><th>Email</th><th>Role</th><th>Status</th><th>Email Configured</th><th>Actions</th>
+      </tr></thead><tbody>
+      ${users?.map(u=>`<tr>
+        <td style="font-weight:500">${escHtml(u.name??'—')}</td>
+        <td style="font-size:.8rem;color:var(--text-secondary)">${u.email}</td>
+        <td>${roleBadge(u.role)}</td>
+        <td><span class="badge ${u.status==='active'?'badge-in-progress':'badge-closed'}">${u.status}</span></td>
+        <td>${u.smtp_email ? `<span class="badge badge-in-progress">✓ ${u.smtp_email}</span>` : '<span class="badge badge-closed">Not set</span>'}</td>
+        <td>
+          <select class="form-select" style="width:auto;padding:4px 8px;font-size:.75rem" onchange="updateUserRole('${u.id}',this.value)">
+            ${ROLES.map(r=>`<option value="${r}" ${r===u.role?'selected':''}>${r}</option>`).join('')}
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')">${u.status==='active'?'Disable':'Enable'}</button>
+        </td>
+      </tr>`).join('')??''}
+      </tbody></table>
+    </div>`
+}
+
+async function updateUserRole(uid, role) {
+  await sb.from('users').update({ role }).eq('id', uid)
+  toast('✓ Role updated')
+}
+async function toggleUserStatus(uid, current) {
+  await sb.from('users').update({ status: current==='active'?'inactive':'active' }).eq('id', uid)
+  toast('✓ Status updated'); nav('users')
+}
+
+function openInviteUser() {
+  modal(`
+    <div class="modal-header"><div class="modal-title">Invite User</div></div>
+    <div class="modal-body">
+      <div class="alert alert-info" style="font-size:.8rem">User will receive a password reset email from Supabase to set their password.</div>
+      <div class="form-group"><label class="form-label req">Email Address</label>
+        <input class="form-input" id="inv-email" type="email" placeholder="colleague@sks3d.com"/></div>
+      <div class="form-group"><label class="form-label req">Full Name</label>
+        <input class="form-input" id="inv-name" placeholder="Full Name"/></div>
+      <div class="form-group"><label class="form-label">Role</label>
+        <select class="form-select" id="inv-role">
+          ${ROLES.map(r=>`<option>${r}</option>`).join('')}
+        </select></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitInvite()">Send Invite</button>
+    </div>
+  `, 'modal-sm')
+}
+
+async function submitInvite() {
+  const email = document.getElementById('inv-email')?.value?.trim()
+  const name  = document.getElementById('inv-name')?.value?.trim()
+  const role  = document.getElementById('inv-role')?.value
+  if (!email||!name) return
+  // Use Supabase admin invite via service role — or just insert user and they signup
+  // For GitHub Pages: insert user profile; send Supabase magic link via sb.auth.signInWithOtp
+  const { error } = await sb.auth.admin?.inviteUserByEmail(email).catch(()=>({error:{message:'Use Supabase dashboard to invite users'}}))
+  if (!error) {
+    await sb.from('users').upsert({ email, name, role, status:'active' }, { onConflict:'email' })
+    closeModalForce(); toast('✓ Invite sent')
+  } else {
+    // Fallback — show instructions
+    closeModalForce()
+    toast('Use Supabase Dashboard → Auth → Invite user, then set their role here', 'error')
+  }
+  nav('users')
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: REPORTS
+// ═══════════════════════════════════════════════════════════
+async function pgReports(pc) {
+  let range = '30d'
+
+  async function loadReport() {
+    const now = new Date()
+    const fromDate = range==='7d' ? new Date(now-7*86400000).toISOString()
+                   : range==='30d'? new Date(now-30*86400000).toISOString()
+                   : range==='90d'? new Date(now-90*86400000).toISOString() : null
+
+    let q = sb.from('sr').select('id,status,priority,owner_id,issue_type,reported_at,closed_at')
+    if (fromDate) q = q.gte('reported_at', fromDate)
+    const [{ data: srs }, { data: users }] = await Promise.all([q, sb.from('users').select('id,name')])
+
+    const userMap = Object.fromEntries((users??[]).map(u=>[u.id,u.name]))
+    const all = srs ?? []
+
+    const byStatus   = {}, byPriority = {}, byOwner = {}, byType = {}
+    let totalResMs = 0, resolvedCount = 0
+
+    all.forEach(s => {
+      byStatus[s.status]     = (byStatus[s.status]??0)+1
+      byPriority[s.priority] = (byPriority[s.priority]??0)+1
+      const n = userMap[s.owner_id]??'Unknown'
+      if (!byOwner[n]) byOwner[n]={open:0,closed:0,total:0}
+      byOwner[n].total++
+      if (s.status==='Closed') byOwner[n].closed++; else byOwner[n].open++
+      byType[s.issue_type??'Other'] = (byType[s.issue_type??'Other']??0)+1
+      if (s.closed_at&&s.reported_at) {
+        totalResMs += new Date(s.closed_at)-new Date(s.reported_at)
+        resolvedCount++
+      }
+    })
+    const avgHours = resolvedCount>0 ? Math.round(totalResMs/resolvedCount/3600000) : null
+
+    document.getElementById('report-body').innerHTML = `
+      <div class="grid-4 mb-5">
+        ${statCard('Total SRs', all.length, 'var(--blue)')}
+        ${statCard('Open', byStatus['Open']??0, 'var(--blue)')}
+        ${statCard('Closed', byStatus['Closed']??0, 'var(--text-muted)')}
+        ${statCard('Avg Resolution', avgHours!=null?avgHours+'h':'—', 'var(--accent)')}
+      </div>
+      <div class="grid-2 mb-4">
+        <div class="card">
+          <h4 style="margin-bottom:12px">By Status</h4>
+          ${barChart(byStatus,['Open','In Progress','Pending','Closed','Archived'])}
+        </div>
+        <div class="card">
+          <h4 style="margin-bottom:12px">By Priority</h4>
+          ${barChart(byPriority,['Critical','High','Medium','Low'])}
+        </div>
+      </div>
+      <div class="card mb-4">
+        <h4 style="margin-bottom:12px">By Owner</h4>
+        <table class="data-table"><thead><tr><th>Name</th><th>Total</th><th>Open</th><th>Closed</th><th>Close Rate</th></tr></thead><tbody>
+        ${Object.entries(byOwner).sort((a,b)=>b[1].total-a[1].total).map(([name,v])=>`<tr>
+          <td style="font-weight:500">${name}</td>
+          <td>${v.total}</td>
+          <td>${v.open}</td>
+          <td>${v.closed}</td>
+          <td>${v.total>0?Math.round(v.closed/v.total*100)+'%':'—'}</td>
+        </tr>`).join('')}
+        </tbody></table>
+      </div>
+      <div class="card">
+        <h4 style="margin-bottom:12px">By Issue Type</h4>
+        ${barChart(byType, Object.keys(byType).sort((a,b)=>(byType[b]||0)-(byType[a]||0)))}
+      </div>`
+  }
+
+  pc.innerHTML = `
+    <div class="page-header">
+      <div><div class="page-title">Reports</div></div>
+      <div style="display:flex;gap:6px">
+        ${['7d','30d','90d','all'].map(r=>`<button class="btn ${r===range?'btn-primary':'btn-ghost'} btn-sm" onclick="setRange('${r}')">${r==='all'?'All Time':r}</button>`).join('')}
+      </div>
+    </div>
+    <div id="report-body">Loading…</div>`
+
+  window.setRange = async (r) => { range=r; await loadReport()
+    document.querySelectorAll('#page-content .btn').forEach(b=>{ b.className=b.getAttribute('onclick')?.includes(`'${r}'`)?'btn btn-primary btn-sm':'btn btn-ghost btn-sm' })
+  }
+  loadReport()
+}
+
+function barChart(data, keys) {
+  const max = Math.max(...keys.map(k=>data[k]??0), 1)
+  return `<div style="display:flex;flex-direction:column;gap:8px">
+    ${keys.filter(k=>data[k]).map(k=>`<div style="display:flex;align-items:center;gap:10px">
+      <div style="width:120px;font-size:.8rem;color:var(--text-secondary);text-align:right;flex-shrink:0">${k}</div>
+      <div style="flex:1;background:var(--bg-elevated);border-radius:4px;height:20px;position:relative">
+        <div style="width:${Math.round((data[k]??0)/max*100)}%;background:var(--accent);height:100%;border-radius:4px;min-width:4px"></div>
+      </div>
+      <div style="width:30px;font-size:.8rem;font-weight:600;color:var(--text-primary)">${data[k]??0}</div>
+    </div>`).join('')}
+  </div>`
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: SETTINGS
+// ═══════════════════════════════════════════════════════════
+async function pgSettings(pc) {
+  let tab = 'email'
+  const { data: driveSet }  = await sb.from('settings').select('value').eq('key','drive').single()
+  const { data: genSet }    = await sb.from('settings').select('value').eq('key','general').single()
+  const { data: waSet }     = await sb.from('settings').select('value').eq('key','whatsapp').single()
+  const { data: myProfile } = await sb.from('users').select('smtp_email,smtp_password,name').eq('id',ME.id).single()
+
+  const gen  = genSet?.value  ?? { company_name:'', sr_prefix:'SR', timezone:'Asia/Kolkata' }
+  const drv  = driveSet?.value?? { sr_folder_id:'', apps_script_url:'', apps_script_token:'' }
+  const wa   = waSet?.value   ?? { bridge_url:'http://localhost:3001' }
+
+  pc.innerHTML = `
+    <div class="page-header"><div class="page-title">Settings</div></div>
+    <div class="tabs">
+      <button class="tab-btn active" id="tab-email"  onclick="switchTab('email')">My Email</button>
+      <button class="tab-btn"        id="tab-general" onclick="switchTab('general')">General</button>
+      <button class="tab-btn"        id="tab-drive"   onclick="switchTab('drive')">Google Drive</button>
+      <button class="tab-btn"        id="tab-wa"      onclick="switchTab('wa')">WhatsApp</button>
+    </div>
+    <div id="tab-content"></div>`
+
+  const panels = {
+    email: `
+      <div class="card" style="max-width:560px">
+        <h3 style="margin-bottom:4px">My Email Credentials</h3>
+        <p style="color:var(--text-muted);font-size:.8rem;margin-bottom:20px">Emails send from your own mailbox. Each user sets their own credentials.</p>
+        <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--radius);padding:12px 14px;margin-bottom:20px;font-size:.8rem">
+          <div style="font-weight:600;color:var(--text-secondary);margin-bottom:6px">📡 Company Mail Server (fixed — same for all users)</div>
+          <div style="color:var(--text-muted);font-family:var(--font-mono);font-size:.75rem;display:flex;gap:24px">
+            <span>Host: <strong style="color:var(--text-primary)">smtpout.secureserver.net</strong></span>
+            <span>Port: <strong style="color:var(--text-primary)">465</strong></span>
+            <span>SSL: <strong style="color:var(--green)">On</strong></span>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label req">Your Email Address</label>
+            <input class="form-input" id="se-email" type="email" value="${escHtml(myProfile?.smtp_email??'')}" placeholder="you@sks3d.com"/>
+            <div class="form-hint">Must match your GoDaddy/company mailbox login</div></div>
+          <div class="form-group"><label class="form-label req">Your Email Password</label>
+            <input class="form-input" id="se-pass" type="password" value="${escHtml(myProfile?.smtp_password??'')}" placeholder="••••••••"/>
+            <div class="form-hint">Your mailbox password — saved to your profile only</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveEmailCreds()">Save My Email</button>
+          <button class="btn btn-secondary" onclick="testEmail()">Send Test Email</button>
+          <div id="email-creds-msg" style="font-size:.8rem"></div>
+        </div>
+      </div>`,
+    general: `
+      <div class="card" style="max-width:560px">
+        <h3 style="margin-bottom:16px">General Settings</h3>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label">Company / System Name</label>
+            <input class="form-input" id="sg-company" value="${escHtml(gen.company_name??'')}"/></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">SR Number Prefix</label>
+              <input class="form-input" id="sg-prefix" value="${escHtml(gen.sr_prefix??'SR')}" placeholder="SR"/>
+              <div class="form-hint">e.g. SR → SR-2026-0001</div></div>
+            <div class="form-group"><label class="form-label">Timezone</label>
+              <select class="form-select" id="sg-tz">
+                ${['Asia/Kolkata','Asia/Dubai','UTC','America/New_York','Europe/London'].map(tz=>`<option ${tz===gen.timezone?'selected':''}>${tz}</option>`).join('')}
+              </select></div>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:20px">
+          <button class="btn btn-primary" onclick="saveGeneral()">Save General</button>
+          <div id="gen-msg" style="font-size:.8rem;color:var(--green)"></div>
+        </div>
+      </div>`,
+    drive: `
+      <div class="card" style="max-width:560px">
+        <h3 style="margin-bottom:4px">Google Drive & Apps Script</h3>
+        <p style="color:var(--text-muted);font-size:.8rem;margin-bottom:16px">Configure folder IDs and Apps Script bridge for Drive and Sheets integration.</p>
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label">SR Folder ID</label>
+            <input class="form-input" id="sd-folder" value="${escHtml(drv.sr_folder_id??'')}" placeholder="Google Drive folder ID"/>
+            <div class="form-hint">Copy from the Drive URL: drive.google.com/drive/folders/<strong>THIS_PART</strong></div></div>
+          <div class="form-group"><label class="form-label">Apps Script Web App URL</label>
+            <input class="form-input" id="sd-url" value="${escHtml(drv.apps_script_url??'')}" placeholder="https://script.google.com/macros/s/…/exec"/>
+            <div class="form-hint">Deploy Code.gs as a Web App and paste the URL here</div></div>
+          <div class="form-group"><label class="form-label">Apps Script Token</label>
+            <input class="form-input" id="sd-token" type="password" value="${escHtml(drv.apps_script_token??'')}" placeholder="secret token matching Code.gs"/></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:20px;flex-wrap:wrap">
+          <button class="btn btn-primary" onclick="saveDrive()">Save Drive Settings</button>
+          <button class="btn btn-secondary" onclick="testDrive()">Test Connection</button>
+          <div id="drive-msg" style="font-size:.8rem"></div>
+        </div>
+      </div>`,
+    wa: `
+      <div class="card" style="max-width:560px">
+        <h3 style="margin-bottom:4px">WhatsApp Bridge</h3>
+        <p style="color:var(--text-muted);font-size:.8rem;margin-bottom:16px">The WhatsApp bridge is a separate service (wa-service/bridge.js). Enter its URL here.</p>
+        <div class="form-group"><label class="form-label">Bridge URL</label>
+          <input class="form-input" id="sw-url" value="${escHtml(wa.bridge_url??'http://localhost:3001')}" placeholder="http://localhost:3001"/>
+          <div class="form-hint">URL where bridge.js is running</div></div>
+        <div class="alert alert-info" style="margin-top:12px;font-size:.78rem">
+          Start the bridge: <code style="font-family:var(--font-mono);background:rgba(0,0,0,.3);padding:2px 6px;border-radius:4px">cd wa-service && node bridge.js</code>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:16px">
+          <button class="btn btn-primary" onclick="saveWA()">Save WhatsApp Settings</button>
+          <div id="wa-msg" style="font-size:.8rem;color:var(--green)"></div>
+        </div>
+      </div>`,
+  }
+
+  window.switchTab = (t) => {
+    tab = t
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'))
+    document.getElementById('tab-'+t)?.classList.add('active')
+    document.getElementById('tab-content').innerHTML = panels[t]
+  }
+
+  window.saveEmailCreds = async () => {
+    const em = document.getElementById('se-email')?.value?.trim()
+    const pw = document.getElementById('se-pass')?.value
+    const el = document.getElementById('email-creds-msg')
+    const { error } = await sb.from('users').update({ smtp_email:em, smtp_password:pw }).eq('id', ME.id)
+    if (!error) { ME.smtp_email=em; ME.smtp_password=pw }
+    el.textContent = error ? `✗ ${error.message}` : '✓ Saved'
+    el.style.color = error ? 'var(--red)' : 'var(--green)'
+  }
+  window.testEmail = async () => {
+    const em = document.getElementById('se-email')?.value?.trim()
+    const pw = document.getElementById('se-pass')?.value
+    const el = document.getElementById('email-creds-msg')
+    el.textContent = 'Sending test…'; el.style.color='var(--text-muted)'
+    // Save first then test
+    await sb.from('users').update({ smtp_email:em, smtp_password:pw }).eq('id', ME.id)
+    const ok = await sendEmailFromBrowser(null, null, 'SR Platform — Test Email', 'This is a test email. Your email credentials are working correctly.')
+    // Need to override recipient for test
+    el.textContent = ok ? '✓ Test email sent to '+em : '✗ Failed — check credentials'
+    el.style.color = ok ? 'var(--green)' : 'var(--red)'
+  }
+  window.saveGeneral = async () => {
+    await sb.from('settings').upsert({ key:'general', value:{ company_name:document.getElementById('sg-company')?.value, sr_prefix:document.getElementById('sg-prefix')?.value, timezone:document.getElementById('sg-tz')?.value }, updated_by:ME.id })
+    const el=document.getElementById('gen-msg'); el.textContent='✓ Saved'; setTimeout(()=>el.textContent='',3000)
+  }
+  window.saveDrive = async () => {
+    const url = document.getElementById('sd-url')?.value?.trim()
+    const token = document.getElementById('sd-token')?.value
+    await sb.from('settings').upsert({ key:'drive', value:{ sr_folder_id:document.getElementById('sd-folder')?.value, apps_script_url:url, apps_script_token:token }, updated_by:ME.id })
+    CFG.appsScriptUrl = url; CFG.appsScriptToken = token
+    const el=document.getElementById('drive-msg'); el.textContent='✓ Saved'; el.style.color='var(--green)'; setTimeout(()=>el.textContent='',3000)
+  }
+  window.testDrive = async () => {
+    const url=document.getElementById('sd-url')?.value?.trim()
+    const el=document.getElementById('drive-msg'); el.textContent='Testing…'; el.style.color='var(--text-muted)'
+    try {
+      const r = await fetch(url,{signal:AbortSignal.timeout(5000)})
+      const d = await r.json()
+      el.textContent=d.ok?'✓ Connected!':'✗ Bridge error: '+d.error; el.style.color=d.ok?'var(--green)':'var(--red)'
+    } catch { el.textContent='✗ Could not reach URL'; el.style.color='var(--red)' }
+  }
+  window.saveWA = async () => {
+    const url=document.getElementById('sw-url')?.value?.trim()
+    await sb.from('settings').upsert({ key:'whatsapp', value:{ bridge_url:url }, updated_by:ME.id })
+    CFG.waBridgeUrl=url
+    const el=document.getElementById('wa-msg'); el.textContent='✓ Saved'; setTimeout(()=>el.textContent='',3000)
+  }
+
+  switchTab('email')
+}
+</script>
+<!-- smtpjs CDN for browser-based SMTP send (no server needed) -->
+<script src="https://smtpjs.com/v3/smtp.js"></script>
+</body>
+</html>

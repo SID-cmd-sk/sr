@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>SR Platform — Sign In</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0A0C12;--card:#141820;--border:#252D3D;--accent:#00D4AA;--text:#E8EAF0;--muted:#8B92A5;--red:#E05555;--font:'Syne',system-ui,sans-serif}
+html{font-size:15px}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;-webkit-font-smoothing:antialiased}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(#1E2535 1px,transparent 1px),linear-gradient(90deg,#1E2535 1px,transparent 1px);background-size:48px 48px;opacity:.35;pointer-events:none}
+.wrap{position:relative;z-index:1;width:100%;max-width:380px;animation:up .4s ease}
+@keyframes up{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.logo{text-align:center;margin-bottom:28px}
+.logo-icon{display:inline-flex;align-items:center;justify-content:center;width:52px;height:52px;border-radius:14px;background:var(--accent);margin-bottom:12px;box-shadow:0 0 32px rgba(0,212,170,.2)}
+.logo-title{font-weight:800;font-size:1.4rem;letter-spacing:-.03em}
+.logo-sub{font-size:.68rem;color:var(--muted);letter-spacing:.12em;text-transform:uppercase;margin-top:3px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:16px;padding:28px}
+.card h2{font-size:1.05rem;font-weight:700;margin-bottom:20px}
+.label{font-size:.72rem;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:6px}
+.input{background:#0E1118;border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:.9rem;padding:9px 13px;width:100%;outline:none;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none}
+.input::placeholder{color:#4B5268}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(0,212,170,.12)}
+.group{margin-bottom:14px}
+.err{background:rgba(224,85,85,.1);border:1px solid rgba(224,85,85,.25);color:var(--red);border-radius:8px;padding:9px 12px;font-size:.83rem;margin-bottom:14px;display:none}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;padding:10px;border-radius:9px;background:var(--accent);color:#0A0C12;font-family:var(--font);font-size:.9rem;font-weight:700;border:none;cursor:pointer;margin-top:8px;transition:background .15s,transform .1s}
+.btn:hover:not(:disabled){background:#00B894;transform:translateY(-1px)}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+.spin{width:14px;height:14px;border:2px solid rgba(0,0,0,.2);border-top-color:#000;border-radius:50%;animation:spin .7s linear infinite;display:none}
+.btn.loading .spin{display:block}.btn.loading .txt{display:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+.foot{text-align:center;margin-top:18px;font-size:.7rem;color:var(--muted);opacity:.7}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4M21 12a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#0A0C12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="logo-title">SR Platform</div>
+    <div class="logo-sub">Internal Workflow System</div>
+  </div>
+  <div class="card">
+    <h2>Sign in to your account</h2>
+    <div class="err" id="err"></div>
+    <div class="group"><label class="label">Email Address</label>
+      <input class="input" type="email" id="email" placeholder="you@sks3d.com" autocomplete="email"/></div>
+    <div class="group"><label class="label">Password</label>
+      <input class="input" type="password" id="pass" placeholder="••••••••" autocomplete="current-password"/></div>
+    <button class="btn" id="btn" onclick="doLogin()">
+      <div class="spin"></div><span class="txt">Sign In</span>
+    </button>
+  </div>
+  <p class="foot">Internal use only · Contact Admin for access</p>
+</div>
+<script>
+// ── PASTE YOUR SUPABASE CREDENTIALS HERE ──
+const SUPABASE_URL  = 'https://YOUR_PROJECT.supabase.co'
+const SUPABASE_ANON = 'YOUR_ANON_KEY_HERE'
+// ──────────────────────────────────────────
+
+const { createClient } = supabase
+const sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+
+// If already logged in, go to app
+sb.auth.getSession().then(({ data }) => {
+  if (data.session) window.location.href = 'app.html'
+})
+
+async function doLogin() {
+  const email = document.getElementById('email').value.trim()
+  const pass  = document.getElementById('pass').value
+  const btn   = document.getElementById('btn')
+  const err   = document.getElementById('err')
+  err.style.display = 'none'
+  if (!email || !pass) { showErr('Please enter your email and password.'); return }
+  btn.disabled = true; btn.classList.add('loading')
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass })
+  if (error) {
+    btn.disabled = false; btn.classList.remove('loading')
+    showErr(error.message.includes('Invalid') ? 'Invalid email or password.' : error.message)
+    return
+  }
+  window.location.href = 'app.html'
+}
+
+function showErr(msg) {
+  const e = document.getElementById('err')
+  e.textContent = msg; e.style.display = 'block'
+}
+
+document.addEventListener('keydown', e => { if (e.key==='Enter') doLogin() })
+</script>
+</body>
+</html>

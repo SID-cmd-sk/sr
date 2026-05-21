@@ -208,3 +208,13 @@ CREATE POLICY "settings_select" ON public.settings FOR SELECT
 CREATE POLICY "settings_upsert" ON public.settings FOR ALL
   USING (auth.user_role() = 'Admin')
   WITH CHECK (auth.user_role() = 'Admin');
+
+-- ─────────────────────────────────────────────────────────────
+-- Per-user SMTP credentials — column-level security
+-- Users can only read/write their own smtp_email and smtp_password
+-- Admins cannot see other users' passwords (enforced at row level)
+-- ─────────────────────────────────────────────────────────────
+-- The existing users RLS policy already restricts row access.
+-- No additional policy needed — smtp columns are on the same table.
+-- Admins can update roles/status but NOT smtp_password of other users
+-- because the update route uses the anon client scoped to the logged-in user.
