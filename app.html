@@ -460,19 +460,7 @@ window.addEventListener('load', async () => {
       return
     }
     
-    // Step 3: Set up auth state listener
-    sb.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) {
-        await loadProfile(session.user.id)
-        showApp()
-        routeFromHash()
-      } else if (event === 'SIGNED_OUT') {
-        ME = null
-        showAuth()
-      }
-    })
-
-    // Step 4: Restore an existing session on hard refresh/direct load.
+    // Step 3: Restore an existing session on hard refresh/direct load.
     const storedSession = getStoredSupabaseSession()
     let sessionUser = storedSession?.user || null
     if (!sessionUser) {
@@ -491,6 +479,18 @@ window.addEventListener('load', async () => {
     } else {
       showAuth()
     }
+
+    // Step 4: Set up auth state listener
+    sb.auth.onAuthStateChange(async (event, session) => {
+      if (session?.user) {
+        await loadProfile(session.user.id)
+        showApp()
+        routeFromHash()
+      } else if (event === 'SIGNED_OUT') {
+        ME = null
+        showAuth()
+      }
+    })
   } catch (error) {
     console.error('Boot error:', error)
     showAuth()
