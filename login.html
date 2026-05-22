@@ -83,9 +83,6 @@ async function initSupabase() {
   }
 }
 
-// Initialize on load
-window.addEventListener('load', initSupabase)
-
 // If already logged in, go to app
 async function checkExistingSession() {
   try {
@@ -99,7 +96,19 @@ async function checkExistingSession() {
     console.error('Session check error:', error)
   }
 }
-window.addEventListener('load', checkExistingSession)
+
+function withTimeout(promise, ms, message) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+window.addEventListener('load', async () => {
+  await initSupabase()
+  await checkExistingSession()
+})
 
 async function doLogin() {
   const email = document.getElementById('email').value.trim()
@@ -136,7 +145,12 @@ async function doLogin() {
   btn.classList.add('loading')
   
   try {
-    const { error } = await sb.auth.signInWithPassword({ email, password: pass })
+    if (!sb) throw new Error('Authentication is not initialized. Refresh and try again.')
+    const { error } = await withTimeout(
+      sb.auth.signInWithPassword({ email, password: pass }),
+      30000,
+      'Sign in timed out. Check your connection and try again.'
+    )
     if (error) {
       btn.disabled = false
       btn.classList.remove('loading')
@@ -147,7 +161,7 @@ async function doLogin() {
   } catch (error) {
     btn.disabled = false
     btn.classList.remove('loading')
-    showErr('An unexpected error occurred. Please try again.')
+    showErr(error.message || 'An unexpected error occurred. Please try again.')
     console.error('Login error:', error)
   }
 }

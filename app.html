@@ -424,7 +424,7 @@ const ROLES       = ['Admin','Manager','Technical','User','Viewer']
 // ── Boot ────────────────────────────────────────────────────
 window.addEventListener('load', async () => {
   try {
-    // Step 1: Initialize configuration from environment
+    // Step 1: Initialize configuration
     const configOk = await initializeConfig()
     if (!configOk) {
       showAuth()
@@ -448,6 +448,16 @@ window.addEventListener('load', async () => {
         showAuth()
       }
     })
+
+    // Step 4: Restore an existing session on hard refresh/direct load.
+    const { data } = await sb.auth.getSession()
+    if (data.session?.user) {
+      await loadProfile(data.session.user.id)
+      showApp()
+      routeFromHash()
+    } else {
+      showAuth()
+    }
   } catch (error) {
     console.error('Boot error:', error)
     showAuth()
@@ -557,6 +567,14 @@ function isValidPhone(phone) {
   return /^[+]?[(]?[0-9]{3}[)]?[-\s.]?[0-9]{3}[-\s.]?[0-9]{4,6}$/.test(phone)
 }
 
+function withTimeout(promise, ms, message) {
+  let timer
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms)
+  })
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
 // ═══════════════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════════════
@@ -567,8 +585,23 @@ async function doLogin() {
   const err   = document.getElementById('login-error')
   err.classList.add('hidden')
   btn.disabled = true; btn.textContent = 'Signing in…'
-  const { error } = await sb.auth.signInWithPassword({ email, password: pass })
-  if (error) {
+
+  try {
+    if (!sb) throw new Error('Authentication is not initialized. Refresh and try again.')
+    const { data, error } = await withTimeout(
+      sb.auth.signInWithPassword({ email, password: pass }),
+      30000,
+      'Sign in timed out. Check your connection and try again.'
+    )
+    if (error) throw error
+
+    const user = data?.user || data?.session?.user
+    if (user) {
+      await loadProfile(user.id)
+      showApp()
+      routeFromHash()
+    }
+  } catch (error) {
     err.textContent = error.message.includes('Invalid') ? 'Invalid email or password.' : error.message
     err.classList.remove('hidden')
     btn.disabled = false; btn.textContent = 'Sign In'
@@ -580,24 +613,22 @@ document.addEventListener('keydown', e => {
 
 async function doLogout() {
   try {
-    // Clear all sensitive data from storage
-    sessionStorage.clear()
-    localStorage.removeItem('sb-auth-token')
-    localStorage.removeItem('device_fingerprint')
-    
-    // Log the logout event
     if (ME) {
-      await auditLog('LOGOUT', ME.id, 'user', 'User logged out', {})
+      await withTimeout(auditLog('LOGOUT', ME.id, 'user', 'User logged out', {}), 5000, 'Logout audit timed out')
     }
-    
-    // Sign out from Supabase
-    await sb.auth.signOut()
-    
-    // Redirect to login
-    window.location.href = 'login.html'
+
+    if (sb) {
+      await withTimeout(sb.auth.signOut(), 10000, 'Supabase sign out timed out')
+    }
   } catch (error) {
     console.error('Logout error:', error)
-    // Force logout even if error
+  } finally {
+    sessionStorage.clear()
+    localStorage.removeItem('device_fingerprint')
+    Object.keys(localStorage)
+      .filter(key => key.startsWith('sb-') && key.includes('auth-token'))
+      .forEach(key => localStorage.removeItem(key))
+
     window.location.href = 'login.html'
   }
 }
