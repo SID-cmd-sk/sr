@@ -4,6 +4,7 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SR Platform</title>
+<link rel="icon" href="data:,"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet"/>
@@ -606,6 +607,31 @@ function withTimeout(promise, ms, message) {
     timer = setTimeout(() => reject(new Error(message)), ms)
   })
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer))
+}
+
+let smtpJsPromise = null
+function loadSmtpJs() {
+  if (window.Email?.send) return Promise.resolve()
+  if (smtpJsPromise) return smtpJsPromise
+
+  smtpJsPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://smtpjs.com/v3/smtp.js'
+    script.onload = () => window.Email?.send ? resolve() : reject(new Error('SMTP library did not initialize'))
+    script.onerror = () => reject(new Error('SMTP library could not be loaded'))
+    document.head.appendChild(script)
+  })
+  return smtpJsPromise
+}
+
+function isUnavailableLocalBridge(url) {
+  try {
+    const bridge = new URL(url)
+    return ['localhost', '127.0.0.1'].includes(bridge.hostname) &&
+      !['localhost', '127.0.0.1'].includes(location.hostname)
+  } catch {
+    return true
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1243,8 +1269,8 @@ async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, c
 
   if (!recipient) { toast('No recipient email on this SR', 'error'); return false }
 
-  // Use smtpjs CDN for browser-based SMTP send
   try {
+    await loadSmtpJs()
     const sent = await Email.send({
       SecureToken: null,
       Host:     CFG.smtpHost,
@@ -1929,6 +1955,11 @@ async function pgWhatsApp(pc) {
   let pollInterval = null
 
   async function fetchWAStatus() {
+    if (!CFG.waBridgeUrl || isUnavailableLocalBridge(CFG.waBridgeUrl)) {
+      waStatus = { connected:false, error:'Bridge unavailable from this host' }
+      renderWA()
+      return
+    }
     try {
       const r = await fetch(`${CFG.waBridgeUrl}/status`, { signal:AbortSignal.timeout(4000) })
       waStatus = await r.json()
@@ -1973,17 +2004,21 @@ async function pgWhatsApp(pc) {
     <div class="card" style="max-width:600px" id="wa-content">Loading…</div>`
 
   fetchWAStatus()
-  pollInterval = setInterval(fetchWAStatus, 4000)
+  if (CFG.waBridgeUrl && !isUnavailableLocalBridge(CFG.waBridgeUrl)) {
+    pollInterval = setInterval(fetchWAStatus, 4000)
+  }
 
   // Cleanup polling when navigating away
   const waCleanup = () => { clearInterval(pollInterval); window.removeEventListener('hashchange', waCleanup) }
   window.addEventListener('hashchange', waCleanup)
 
   window.waConnect = async () => {
+    if (!CFG.waBridgeUrl || isUnavailableLocalBridge(CFG.waBridgeUrl)) return
     try { await fetch(`${CFG.waBridgeUrl}/connect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
     setTimeout(fetchWAStatus, 1500)
   }
   window.waDisconnect = async () => {
+    if (!CFG.waBridgeUrl || isUnavailableLocalBridge(CFG.waBridgeUrl)) return
     try { await fetch(`${CFG.waBridgeUrl}/disconnect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
     waStatus = { connected:false }; renderWA()
   }
@@ -1993,6 +2028,11 @@ async function pgWhatsApp(pc) {
     if (!phone||!message) return
     const el = document.getElementById('wa-send-status')
     el.textContent = 'Sending…'; el.className = ''
+    if (!CFG.waBridgeUrl || isUnavailableLocalBridge(CFG.waBridgeUrl)) {
+      el.textContent = 'Bridge unavailable from this host'
+      el.className = 'text-red'
+      return
+    }
     try {
       const r = await fetch(`${CFG.waBridgeUrl}/send`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({phone,message}),signal:AbortSignal.timeout(15000)})
       const d = await r.json()
@@ -2304,6 +2344,7 @@ async function pgSettings(pc) {
 
   window.sendTestEmail = async (toEmail, password) => {
     try {
+      await loadSmtpJs()
       const sent = await Email.send({
         SecureToken: null,
         Host:     CFG.smtpHost,
@@ -2379,7 +2420,5 @@ async function pgSettings(pc) {
   }
 }
 </script>
-<!-- smtpjs CDN for browser-based SMTP send (no server needed) -->
-<script src="https://smtpjs.com/v3/smtp.js"></script>
 </body>
 </html>
