@@ -1160,6 +1160,27 @@ function detailRow(label, value) {
 }
 
 // ── Advance modal (with email prompt) ─────────────────────
+async function getRouteStepConfig(srId, nextStep) {
+  const { data: sr } = await sb.from('sr').select('route_id').eq('id', srId).single()
+  if (!sr?.route_id) return null
+  const { data: step } = await sb.from('route_steps').select('*').eq('route_id', sr.route_id).eq('step_order', nextStep).single()
+  return step || null
+}
+
+async function sendStepAutomationEmail(srId, stepCfg) {
+  if (!stepCfg?.email_trigger_enabled) return { ok:true, skipped:true }
+  const dedupeKey = `AUTO_STEP_${stepCfg.id}`
+  const { data: existing } = await sb.from('notification_logs').select('id').eq('channel','email').eq('sr_id',srId).ilike('subject', `%${dedupeKey}%`).limit(1)
+  if (existing?.length) return { ok:true, skipped:true, duplicate:true }
+  const recipient = (stepCfg.email_recipients||'').split(',').map(v=>v.trim()).find(Boolean) || null
+  const ok = await sendEmailFromBrowser(srId, stepCfg.email_template||null, stepCfg.email_subject_override||null, stepCfg.email_body_override||null, recipient, {
+    step_name: stepCfg.name||'',
+    completion_time: new Date().toISOString(),
+    assigned_user: stepCfg.assigned_role||''
+  }, dedupeKey)
+  return { ok }
+}
+
 async function openAdvanceModal(srId, currentStep, totalSteps) {
   const { data: templates } = await sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name')
   const nextStep = currentStep + 1
@@ -1246,11 +1267,13 @@ async function confirmAdvance(srId, currentStep, totalSteps) {
 
   await sb.from('sr').update({ current_step: nextStep, status: 'In Progress' }).eq('id', srId)
   await sb.from('sr_stage_history').insert({ sr_id:srId, from_step:currentStep, to_step:nextStep, advanced_by:ME.id })
+  const stepCfg = await getRouteStepConfig(srId, nextStep)
+  const autoEmail = await sendStepAutomationEmail(srId, stepCfg)
   await sb.from('audit_log').insert({ action:'SR_STAGE_ADVANCE', user_id:ME.id, target_id:srId, target_type:'sr',
-    description:`Advanced to step ${nextStep}${emailChoice==='yes'?' (email sent)':''}` })
+    description:`Advanced to step ${nextStep}${emailChoice==='yes'?' (manual email)':''}${stepCfg?.email_trigger_enabled?' (auto email checked)':''}` })
 
   closeModalForce()
-  toast(emailChoice==='yes' ? '✓ Step advanced · Email sent' : '✓ Step advanced')
+  toast(autoEmail?.ok===false ? '✓ Step advanced · Auto-email failed' : (emailChoice==='yes' ? '✓ Step advanced · Email sent' : '✓ Step advanced'))
   nav('sr-detail', { id: srId })
 }
 
@@ -1355,7 +1378,7 @@ async function sendWABySRId(srId) {
 
 // ── Email from browser (SMTP via EmailJS-style or smtpjs.com CDN) ──
 // Since GitHub Pages has no server, we call smtpjs.com to relay with user's credentials
-async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, customBody=null) {
+async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, customBody=null, forcedRecipient=null, extraPlaceholders={}, dedupeKey='') {
   // Load user smtp creds
   const { data: profile } = await sb.from('users').select('smtp_email,smtp_password,name').eq('id',ME.id).single()
   if (!profile?.smtp_email || !profile?.smtp_password) {
@@ -1367,12 +1390,12 @@ async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, c
   if (srId) {
     const { data: sr } = await sb.from('sr_list').select('*').eq('id', srId).single()
     if (sr) {
-      recipient = sr.customer_email
+      recipient = forcedRecipient || sr.customer_email
       if (templateId) {
         const { data: tpl } = await sb.from('templates').select('*').eq('id', templateId).single()
         if (tpl) {
-          subject = subject || replacePlaceholders(tpl.subject||'', sr, profile.name||profile.smtp_email)
-          body    = body    || replacePlaceholders(tpl.body||'', sr, profile.name||profile.smtp_email)
+          subject = subject || replacePlaceholders(tpl.subject||'', sr, profile.name||profile.smtp_email, extraPlaceholders)
+          body    = body    || replacePlaceholders(tpl.body||'', sr, profile.name||profile.smtp_email, extraPlaceholders)
         }
       }
       subject = subject || `Update on Service Request ${sr.sr_number}`
@@ -1381,6 +1404,10 @@ async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, c
   }
 
   if (!recipient) { toast('No recipient email on this SR', 'error'); return false }
+  if (dedupeKey) {
+    subject = `${subject} [${dedupeKey}]`
+    body = `${body}\n\n[${dedupeKey}]`
+  }
 
   try {
     await loadSmtpJs()
@@ -1600,8 +1627,8 @@ async function triggerStepEmail(srId, stepId, forceSend = false) {
   }
 }
 
-function replacePlaceholders(str, sr, senderName) {
-  return str
+function replacePlaceholders(str, sr, senderName, extra={}) {
+  let out = str
     .replace(/\{\{sr_number\}\}/g,         sr.sr_number??'')
     .replace(/\{\{customer_name\}\}/g,     sr.customer_name??'')
     .replace(/\{\{owner_name\}\}/g,        sr.owner_name??'')
@@ -1612,6 +1639,17 @@ function replacePlaceholders(str, sr, senderName) {
     .replace(/\{\{resolution\}\}/g,        sr.resolution??'')
     .replace(/\{\{company_name\}\}/g,      senderName)
     .replace(/\{\{account\}\}/g,           sr.account??'')
+  const map = {
+    name: extra.name || sr.customer_name || '',
+    email: extra.email || sr.customer_email || '',
+    step_name: extra.step_name || '',
+    route_name: extra.route_name || sr.route_name || '',
+    completion_time: extra.completion_time || '',
+    company: extra.company || sr.account || '',
+    assigned_user: extra.assigned_user || ''
+  }
+  Object.entries(map).forEach(([k,v]) => { out = out.replace(new RegExp(`\\{\\{${k}\\}\\}`, 'g'), v||'') })
+  return out
 }
 
 // ─── Sheets sync (non-blocking, calls Apps Script directly) ──
@@ -2142,6 +2180,15 @@ function openAddStep(routeId) {
         <div class="form-group"><label class="form-label">SLA Hours</label>
           <input class="form-input" id="as-sla" type="number" placeholder="e.g. 24"/></div>
       </div>
+      <div class="form-group">
+        <label class="form-label"><input type="checkbox" id="as-email-enabled" style="margin-right:8px">Enable step auto-email</label>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label class="form-label">Email Template ID</label><input class="form-input" id="as-email-template" placeholder="Optional template UUID"/></div>
+        <div class="form-group"><label class="form-label">Recipients</label><input class="form-input" id="as-email-recips" placeholder="Comma-separated emails"/></div>
+      </div>
+      <div class="form-group"><label class="form-label">Email Subject Override</label><input class="form-input" id="as-email-subj" placeholder="Optional subject"/></div>
+      <div class="form-group"><label class="form-label">Email Body Override</label><textarea class="form-textarea" id="as-email-body" rows="2"></textarea></div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
@@ -2161,6 +2208,11 @@ async function submitAddStep(routeId) {
     assigned_role:document.getElementById('as-role')?.value||'Technical',
     sla_hours:document.getElementById('as-sla')?.value ? parseInt(document.getElementById('as-sla').value) : null,
     is_required:true,
+    email_trigger_enabled: !!document.getElementById('as-email-enabled')?.checked,
+    email_template: document.getElementById('as-email-template')?.value?.trim() || null,
+    email_recipients: document.getElementById('as-email-recips')?.value?.trim() || null,
+    email_subject_override: document.getElementById('as-email-subj')?.value || null,
+    email_body_override: document.getElementById('as-email-body')?.value || null,
   })
   closeModalForce(); toast('✓ Step added'); nav('routes')
 }
