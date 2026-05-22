@@ -13,23 +13,23 @@
 <style>
 
 :root{
-  --bg:#0A0C12;--bg-surface:#0E1118;--bg-elevated:#141820;--bg-card:#181D27;--bg-hover:#1E2430;
-  --border:#1E2535;--border-light:#252D3D;
-  --text-primary:#E8EAF0;--text-secondary:#8B92A5;--text-muted:#4B5268;--text-inverse:#0A0C12;
-  --accent:#00D4AA;--accent-dim:rgba(0,212,170,.12);--accent-hover:#00B894;
-  --green:#00D4AA;--yellow:#D4A800;--red:#E05555;--red-crit:#FF2D2D;
-  --blue:#3B9EFF;--purple:#8B5CF6;--orange:#F97316;
+  --bg:#080A10;--bg-surface:#0C0E16;--bg-elevated:#121622;--bg-card:#161B2A;--bg-hover:#1D2437;
+  --border:rgba(255,255,255,0.06);--border-light:rgba(255,255,255,0.12);
+  --text-primary:#F1F3F9;--text-secondary:#9FA6BC;--text-muted:#5E667E;--text-inverse:#080A10;
+  --accent:#00E5BA;--accent-dim:rgba(0,229,186,0.1);--accent-hover:#00C7A1;
+  --green:#00E5BA;--yellow:#FBBF24;--red:#F87171;--red-crit:#EF4444;
+  --blue:#60A5FA;--purple:#A78BFA;--orange:#FB923C;
   --font-display:'Syne',system-ui,sans-serif;--font-body:'Syne',system-ui,sans-serif;--font-mono:'Geist Mono','Courier New',monospace;
   --radius-sm:4px;--radius:8px;--radius-lg:12px;--radius-xl:16px;
-  --sidebar-w:220px;--header-h:56px;--transition:150ms cubic-bezier(.4,0,.2,1);
+  --sidebar-w:220px;--header-h:56px;--transition:250ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:14px}
 body{font-family:var(--font-body);background:var(--bg);color:var(--text-primary);line-height:1.5;-webkit-font-smoothing:antialiased;min-height:100vh}
 ::selection{background:var(--accent);color:var(--text-inverse)}
-::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar{width:6px;height:6px}
 ::-webkit-scrollbar-track{background:transparent}
-::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:2px}
+::-webkit-scrollbar-thumb{background:var(--border-light);border-radius:3px}
 h1{font-size:1.75rem;font-weight:700;letter-spacing:-.02em}
 h2{font-size:1.375rem;font-weight:600;letter-spacing:-.01em}
 h3{font-size:1.1rem;font-weight:600}
@@ -38,7 +38,7 @@ a{color:inherit;text-decoration:none}
 
 /* Layout */
 #auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;position:relative}
-#auth-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:.35;pointer-events:none}
+#auth-screen::before{content:'';position:fixed;inset:0;background-image:linear-gradient(var(--border) 1px,transparent 1px),linear-gradient(90deg,var(--border) 1px,transparent 1px);background-size:48px 48px;opacity:.25;pointer-events:none}
 .app-shell{display:flex;height:100vh;overflow:hidden}
 .app-sidebar{width:var(--sidebar-w);flex-shrink:0;background:var(--bg-surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow-y:auto;overflow-x:hidden}
 .app-main{flex:1;display:flex;flex-direction:column;overflow:hidden}
@@ -52,15 +52,16 @@ a{color:inherit;text-decoration:none}
 .sidebar-section{padding:12px 8px 4px}
 .sidebar-section-label{font-size:.62rem;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);padding:0 8px;margin-bottom:4px}
 .sidebar-link{display:flex;align-items:center;gap:10px;padding:7px 8px;border-radius:var(--radius);color:var(--text-secondary);font-size:.875rem;font-weight:500;transition:all var(--transition);cursor:pointer;border:none;background:none;width:100%;text-align:left;font-family:var(--font-body)}
-.sidebar-link:hover{background:var(--bg-hover);color:var(--text-primary)}
+.sidebar-link:hover{background:var(--bg-hover);color:var(--text-primary);transform:translateX(2px)}
 .sidebar-link.active{background:var(--accent-dim);color:var(--accent)}
 .sidebar-footer{margin-top:auto;padding:12px 8px;border-top:1px solid var(--border)}
 
 /* Cards */
-.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px;transition:transform var(--transition), border-color var(--transition), box-shadow var(--transition)}
+.card:hover{transform:translateY(-2px);border-color:var(--border-light);box-shadow:0 12px 24px -10px rgba(0, 0, 0, 0.5)}
 .card-sm{padding:12px}.card-lg{padding:24px}
-.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;transition:border-color var(--transition)}
-.stat-card:hover{border-color:var(--border-light)}
+.stat-card{background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 20px;display:flex;flex-direction:column;gap:4px;position:relative;overflow:hidden;transition:all var(--transition)}
+.stat-card:hover{border-color:var(--border-light);transform:translateY(-2px);box-shadow:0 12px 24px -10px rgba(0, 0, 0, 0.5)}
 .stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--ac,var(--accent))}
 .stat-value{font-family:var(--font-display);font-size:2rem;font-weight:800;color:var(--ac,var(--accent));line-height:1;letter-spacing:-.03em}
 .stat-label{font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted)}
@@ -74,26 +75,28 @@ a{color:inherit;text-decoration:none}
 .data-table tbody tr:last-child td{border-bottom:none}
 
 /* Badges */
-.badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:20px;font-size:.7rem;font-weight:600;letter-spacing:.04em;white-space:nowrap}
+.badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:.7rem;font-weight:600;letter-spacing:.04em;white-space:nowrap;border:1px solid transparent}
 .badge-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0}
-.badge-low{background:rgba(107,114,128,.15);color:#9CA3AF}
-.badge-medium{background:rgba(212,168,0,.15);color:#D4A800}
-.badge-high{background:rgba(224,85,85,.15);color:#E05555}
-.badge-critical{background:rgba(255,45,45,.2);color:#FF6B6B;border:1px solid rgba(255,45,45,.3)}
-.badge-open{background:rgba(59,158,255,.15);color:#3B9EFF}
-.badge-in-progress{background:rgba(0,212,170,.15);color:#00D4AA}
-.badge-pending{background:rgba(212,168,0,.15);color:#D4A800}
-.badge-closed{background:rgba(107,114,128,.15);color:#9CA3AF}
-.badge-archived{background:rgba(55,65,81,.3);color:#6B7280}
-.badge-admin{background:rgba(139,92,246,.15);color:#A78BFA}
-.badge-manager{background:rgba(0,212,170,.15);color:#00D4AA}
-.badge-technical{background:rgba(59,158,255,.15);color:#3B9EFF}
-.badge-user{background:rgba(232,234,240,.08);color:var(--text-secondary)}
-.badge-viewer{background:rgba(55,65,81,.3);color:#6B7280}
+.badge-low{background:rgba(107,114,128,.1);color:#A3A3A3;border-color:rgba(107,114,128,.2)}
+.badge-medium{background:rgba(212,168,0,.1);color:#FBBF24;border-color:rgba(212,168,0,.2)}
+.badge-high{background:rgba(224,85,85,.1);color:#F87171;border-color:rgba(224,85,85,.2)}
+.badge-critical{background:rgba(255,45,45,.15);color:#FCA5A5;border-color:rgba(255,45,45,.35)}
+.badge-open{background:rgba(59,158,255,.1);color:#60A5FA;border-color:rgba(59,158,255,.2)}
+.badge-in-progress{background:rgba(0,229,186,.1);color:#34D399;border-color:rgba(0,229,186,.2)}
+.badge-pending{background:rgba(212,168,0,.1);color:#FBBF24;border-color:rgba(212,168,0,.2)}
+.badge-closed{background:rgba(107,114,128,.1);color:#A3A3A3;border-color:rgba(107,114,128,.2)}
+.badge-archived{background:rgba(55,65,81,.2);color:#9CA3AF;border-color:rgba(55,65,81,.3)}
+.badge-admin{background:rgba(139,92,246,.1);color:#C084FC;border-color:rgba(139,92,246,.2)}
+.badge-manager{background:rgba(0,229,186,.1);color:#34D399;border-color:rgba(0,229,186,.2)}
+.badge-technical{background:rgba(59,158,255,.1);color:#60A5FA;border-color:rgba(59,158,255,.2)}
+.badge-user{background:rgba(232,234,240,.08);color:var(--text-secondary);border-color:var(--border)}
+.badge-viewer{background:rgba(55,65,81,.2);color:#9CA3AF;border-color:rgba(55,65,81,.3)}
 
 /* Buttons */
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:var(--radius);font-size:.875rem;font-weight:600;font-family:var(--font-body);cursor:pointer;border:1px solid transparent;transition:all var(--transition);white-space:nowrap;text-decoration:none}
 .btn:disabled{opacity:.45;cursor:not-allowed}
+.btn:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 4px 12px rgba(0,0,0,0.15)}
+.btn:active:not(:disabled){transform:translateY(0) scale(0.98)}
 .btn-primary{background:var(--accent);color:var(--text-inverse);border-color:var(--accent)}
 .btn-primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
 .btn-secondary{background:var(--bg-elevated);color:var(--text-primary);border-color:var(--border-light)}
@@ -118,8 +121,8 @@ a{color:inherit;text-decoration:none}
 .form-hint{font-size:.75rem;color:var(--text-muted);margin-top:2px}
 
 /* Modal */
-.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);backdrop-filter:blur(4px);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 150ms ease}
-.modal{background:var(--bg-card);border:1px solid var(--border-light);border-radius:var(--radius-xl);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;animation:slideUp 200ms cubic-bezier(.34,1.56,.64,1)}
+.modal-overlay{position:fixed;inset:0;background:rgba(5,7,12,0.65);backdrop-filter:blur(10px);z-index:100;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn 200ms ease;transition:backdrop-filter 200ms ease}
+.modal{background:linear-gradient(135deg, rgba(22, 27, 42, 0.95), rgba(12, 14, 22, 0.98));border:1px solid rgba(255,255,255,0.06);box-shadow:0 24px 64px -12px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255,255,255,0.05);border-radius:var(--radius-xl);width:100%;max-width:600px;max-height:92vh;overflow-y:auto;animation:slideUp 300ms cubic-bezier(0.16, 1, 0.3, 1)}
 .modal-lg{max-width:800px}.modal-sm{max-width:420px}
 .modal-header{padding:20px 24px 0;display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
 .modal-title{font-size:1.1rem;font-weight:700}
@@ -145,10 +148,10 @@ a{color:inherit;text-decoration:none}
 
 /* Alerts */
 .alert{display:flex;align-items:flex-start;gap:10px;padding:12px 14px;border-radius:var(--radius);font-size:.875rem;border:1px solid transparent;margin-bottom:12px}
-.alert-success{background:rgba(0,212,170,.1);border-color:rgba(0,212,170,.2);color:var(--green)}
-.alert-error{background:rgba(224,85,85,.1);border-color:rgba(224,85,85,.2);color:var(--red)}
-.alert-warning{background:rgba(212,168,0,.1);border-color:rgba(212,168,0,.2);color:var(--yellow)}
-.alert-info{background:rgba(59,158,255,.1);border-color:rgba(59,158,255,.2);color:var(--blue)}
+.alert-success{background:rgba(0,229,186,.1);border-color:rgba(0,229,186,.2);color:var(--green)}
+.alert-error{background:rgba(248,113,113,.1);border-color:rgba(248,113,113,.2);color:var(--red)}
+.alert-warning{background:rgba(251,191,36,.1);border-color:rgba(251,191,36,.2);color:var(--yellow)}
+.alert-info{background:rgba(96,165,250,.1);border-color:rgba(96,165,250,.2);color:var(--blue)}
 
 /* Empty state */
 .empty-state{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 20px;text-align:center}
@@ -159,7 +162,13 @@ a{color:inherit;text-decoration:none}
 /* Route progress */
 .route-step-dot{width:24px;height:24px;border-radius:50%;border:2px solid var(--border-light);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:.65rem;font-weight:700;color:var(--text-muted);flex-shrink:0}
 .route-step-dot.done{background:var(--accent);border-color:var(--accent);color:var(--text-inverse)}
-.route-step-dot.current{border-color:var(--accent);color:var(--accent);box-shadow:0 0 0 4px var(--accent-dim)}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(0, 229, 186, 0.4); }
+  70% { box-shadow: 0 0 0 8px rgba(0, 229, 186, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(0, 229, 186, 0); }
+}
+.route-step-dot.current{border-color:var(--accent);color:var(--accent);animation:pulse-ring 2s cubic-bezier(0.25, 0, 0, 1) infinite;background:rgba(0, 229, 186, 0.1)}
 .route-connector{height:2px;flex:1;background:var(--border);min-width:20px}
 .route-connector.done{background:var(--accent)}
 
@@ -196,9 +205,9 @@ a{color:inherit;text-decoration:none}
 /* Toast container */
 #toast-root{position:fixed;bottom:24px;right:24px;z-index:9999;display:flex;flex-direction:column;gap:8px;pointer-events:none}
 .toast{pointer-events:all;display:flex;align-items:center;gap:10px;padding:12px 18px;border-radius:var(--radius-lg);font-size:.85rem;font-weight:500;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideUp .2s ease;border:1px solid transparent;min-width:240px}
-.toast-success{background:#0d2420;border-color:rgba(0,212,170,.3);color:#00D4AA}
-.toast-error{background:#200d0d;border-color:rgba(224,85,85,.3);color:#E05555}
-.toast-info{background:#0d1520;border-color:rgba(59,158,255,.3);color:#3B9EFF}
+.toast-success{background:#0d2420;border-color:rgba(0,229,186,.3);color:#00E5BA}
+.toast-error{background:#200d0d;border-color:rgba(248,113,113,.3);color:#F87171}
+.toast-info{background:#0d1520;border-color:rgba(96,165,250,.3);color:#60A5FA}
 
 /* Page error state */
 .page-error{display:flex;flex-direction:column;align-items:center;gap:14px;padding:60px 20px;text-align:center}
@@ -951,10 +960,11 @@ async function pgSRDetail(pc, params) {
   pc.innerHTML = skeletonPage(false)
   try {
   const id = params.id
-  const [{ data:sr }, { data:history }, { data:templates }] = await Promise.all([
+  const [{ data:sr }, { data:history }, { data:templates }, { data:emailLogs }] = await Promise.all([
     sb.from('sr_list').select('*').eq('id', id).single(),
     sb.from('sr_stage_history').select('*,advanced_by_user:users(name)').eq('sr_id',id).order('advanced_at',{ascending:false}),
     sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name'),
+    sb.from('step_email_logs').select('*').eq('sr_id', id)
   ])
 
   if (!sr) { pc.innerHTML = '<div class="alert alert-error">SR not found.</div>'; return }
@@ -962,6 +972,18 @@ async function pgSRDetail(pc, params) {
   const { data: routeSteps } = sr.route_id
     ? await sb.from('route_steps').select('*').eq('route_id', sr.route_id).order('step_order')
     : { data: [] }
+
+  const automatedSteps = routeSteps?.filter(s => s.email_enabled) || []
+
+  // Retrigger function local to window context for click handler
+  window.retriggerAutomatedEmail = async (srId, stepId) => {
+    toast('✓ Retriggering automated email...', 'info')
+    const ok = await triggerStepEmail(srId, stepId, true)
+    if (ok) {
+      toast('✓ Automated email dispatched successfully')
+    }
+    nav('sr-detail', { id: srId })
+  }
 
   const isClosed = ['Closed','Archived'].includes(sr.status)
   const isLastStep = routeSteps?.length > 0 && sr.current_step >= routeSteps.length
@@ -1040,6 +1062,80 @@ async function pgSRDetail(pc, params) {
         <p style="color:var(--text-secondary);font-size:.875rem;line-height:1.7;white-space:pre-wrap">${escHtml(sr.resolution)}</p>
       </div>` : ''}
     </div>
+
+    ${automatedSteps.length ? `
+      <div class="card mb-4">
+        <h4 style="margin-bottom:12px;color:var(--text-primary);display:flex;align-items:center;gap:8px">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--accent)">
+            <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
+            <polyline points="22,6 12,13 2,6"/>
+          </svg>
+          Automated Step Emails
+        </h4>
+        <div style="display:flex;flex-direction:column;gap:12px">
+          ${automatedSteps.map(step => {
+            const log = emailLogs?.find(l => l.step_id === step.id)
+            let statusBadge = ''
+            let statusText = ''
+            let attemptsInfo = ''
+            let actionBtn = ''
+            let detailsHtml = ''
+
+            if (log) {
+              const attempts = log.attempts || 1
+              attemptsInfo = `<span style="font-size:.7rem;color:var(--text-muted)"> (\${attempts} attempt\${attempts > 1 ? 's' : ''})</span>`
+              
+              if (log.status === 'sent') {
+                statusBadge = '<span class="badge badge-in-progress" style="background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)">Sent</span>'
+                statusText = `<span style="font-size:.75rem;color:var(--text-muted)">Sent to <strong style="color:var(--text-secondary)">\${escHtml(log.recipient)}</strong> on \${fmtDate(log.sent_at)}</span>`
+                actionBtn = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); retriggerAutomatedEmail('\${id}', '\${step.id}')">Resend</button>`
+              } else if (log.status === 'failed') {
+                statusBadge = '<span class="badge badge-closed" style="background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)">Failed</span>'
+                statusText = `<span style="font-size:.75rem;color:var(--text-muted)">Failed for <strong style="color:var(--text-secondary)">\${escHtml(log.recipient)}</strong>\${attemptsInfo}</span>`
+                actionBtn = `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation(); retriggerAutomatedEmail('\${id}', '\${step.id}')">Retrigger</button>`
+                if (log.error_msg) {
+                  detailsHtml = `<div style="margin-top:6px;padding:8px 10px;background:rgba(239,68,68,0.08);border-left:3px solid #ef4444;border-radius:4px;font-size:.75rem;color:rgba(255,255,255,0.85);font-family:monospace;white-space:pre-wrap">Error: \${escHtml(log.error_msg)}</div>`
+                }
+              } else {
+                statusBadge = '<span class="badge badge-low">Pending</span>'
+                statusText = `<span style="font-size:.75rem;color:var(--text-muted)">Pending delivery to <strong>\${escHtml(log.recipient)}</strong></span>`
+                actionBtn = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); retriggerAutomatedEmail('\${id}', '\${step.id}')">Send Now</button>`
+              }
+            } else {
+              const isPast = step.step_order < sr.current_step
+              if (isPast) {
+                statusBadge = '<span class="badge badge-closed" style="background:rgba(255,255,255,0.08);color:var(--text-muted);border:1px solid var(--border)">Not Sent</span>'
+                statusText = `<span style="font-size:.75rem;color:var(--text-muted)">Step completed but email was not triggered.</span>`
+                actionBtn = `<button class="btn btn-secondary btn-sm" onclick="event.stopPropagation(); retriggerAutomatedEmail('\${id}', '\${step.id}')">Send Now</button>`
+              } else {
+                statusBadge = '<span class="badge badge-low" style="background:rgba(59,130,246,0.15);color:#3b82f6;border:1px solid rgba(59,130,246,0.3)">Scheduled</span>'
+                statusText = `<span style="font-size:.75rem;color:var(--text-muted)">Triggers automatically when completing Step \${step.step_order}.</span>`
+                actionBtn = `<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation(); retriggerAutomatedEmail('\${id}', '\${step.id}')" style="opacity:0.6">Pre-send</button>`
+              }
+            }
+
+            return `
+              <div class="email-step-log-row" style="padding:12px;background:var(--bg-elevated);border-radius:var(--radius);border:1px solid var(--border);display:flex;flex-direction:column;gap:6px">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <span class="route-step-dot" style="width:20px;height:20px;font-size:.75rem;flex-shrink:0">\${step.step_order}</span>
+                    <span style="font-weight:600;font-size:.85rem;color:var(--text-primary)">\${escHtml(step.name)}</span>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:10px">
+                    \${statusBadge}
+                    \${actionBtn}
+                  </div>
+                </div>
+                <div style="padding-left:28px">
+                  \${statusText}
+                  \${detailsHtml}
+                </div>
+              </div>
+            `
+          }).join('')}
+        </div>
+      </div>
+    ` : ''}
 
     ${history?.length ? `<div class="card">
       <h4 style="margin-bottom:12px">Step History</h4>
@@ -1129,6 +1225,23 @@ async function confirmAdvance(srId, currentStep, totalSteps) {
   if (emailChoice === 'yes') {
     const tplId = document.getElementById('adv-tpl')?.value
     await sendEmailFromBrowser(srId, tplId)
+  }
+
+  // Hook for Automated Step Emails: trigger automatically if step email is enabled
+  try {
+    const { data: srInfo } = await sb.from('sr').select('route_id').eq('id', srId).single()
+    if (srInfo?.route_id) {
+      const { data: step } = await sb.from('route_steps')
+        .select('*')
+        .eq('route_id', srInfo.route_id)
+        .eq('step_order', currentStep)
+        .maybeSingle()
+      if (step && step.email_enabled) {
+        await triggerStepEmail(srId, step.id, false)
+      }
+    }
+  } catch (e) {
+    console.error('Error in automated step email trigger:', e)
   }
 
   await sb.from('sr').update({ current_step: nextStep, status: 'In Progress' }).eq('id', srId)
@@ -1289,6 +1402,202 @@ async function sendEmailFromBrowser(srId, templateId=null, customSubject=null, c
     }
     return ok
   } catch(e) { console.error('Email error:', e); return false }
+}
+
+async function triggerStepEmail(srId, stepId, forceSend = false) {
+  try {
+    const { data: step, error: stepErr } = await sb.from('route_steps').select('*').eq('id', stepId).single()
+    if (stepErr || !step) {
+      console.error('Failed to load route step config:', stepErr)
+      return false
+    }
+
+    const { data: sr, error: srErr } = await sb.from('sr_list').select('*').eq('id', srId).single()
+    if (srErr || !sr) {
+      console.error('Failed to load SR details:', srErr)
+      return false
+    }
+
+    if (!forceSend) {
+      const { data: existingLog } = await sb.from('step_email_logs')
+        .select('*')
+        .eq('sr_id', srId)
+        .eq('step_id', stepId)
+        .maybeSingle()
+      if (existingLog && existingLog.status === 'sent') {
+        console.log('Automated email already sent for this step, skipping.')
+        return true
+      }
+    }
+
+    const { data: profile } = await sb.from('users').select('smtp_email,smtp_password,name').eq('id', ME.id).single()
+
+    const recipients = []
+    const reqRecs = step.email_recipients || 'customer'
+    const recTokens = reqRecs.split(',').map(s => s.trim().toLowerCase())
+
+    for (const token of recTokens) {
+      if (token === 'customer') {
+        if (sr.customer_email) recipients.push(sr.customer_email)
+      } else if (token === 'owner') {
+        if (sr.owner_email) recipients.push(sr.owner_email)
+      } else if (token === 'creator') {
+        const { data: creator } = await sb.from('users').select('email').eq('id', sr.creator_id).single()
+        if (creator?.email) recipients.push(creator.email)
+      } else if (token.includes('@')) {
+        recipients.push(token)
+      }
+    }
+
+    const recipientStr = [...new Set(recipients)].filter(Boolean).join(', ')
+
+    let rawSubject = step.email_subject
+    let rawBody = step.email_body
+
+    if (step.email_template && (!rawSubject || !rawBody)) {
+      const { data: tpl } = await sb.from('templates').select('*').eq('id', step.email_template).single()
+      if (tpl) {
+        rawSubject = rawSubject || tpl.subject
+        rawBody = rawBody || tpl.body
+      }
+    }
+
+    const senderName = profile?.name || profile?.smtp_email || 'System'
+    const finalSubjectTemplate = rawSubject || `Update on Service Request \${sr.sr_number}`
+    const finalBodyTemplate = rawBody || `Your SR \${sr.sr_number} status is now: \${sr.status}`
+
+    const evalPlaceholders = (str) => {
+      if (!str) return ''
+      return str
+        .replace(/\{\{name\}\}/g,             sr.customer_name || '')
+        .replace(/\{\{email\}\}/g,            sr.customer_email || '')
+        .replace(/\{\{step_name\}\}/g,        step.name || '')
+        .replace(/\{\{route_name\}\}/g,       sr.route_name || '')
+        .replace(/\{\{completion_time\}\}/g,  new Date().toLocaleString())
+        .replace(/\{\{company\}\}/g,          senderName)
+        .replace(/\{\{assigned_user\}\}/g,    sr.owner_name || '')
+        .replace(/\{\{sr_number\}\}/g,         sr.sr_number || '')
+        .replace(/\{\{customer_name\}\}/g,     sr.customer_name || '')
+        .replace(/\{\{owner_name\}\}/g,        sr.owner_name || '')
+        .replace(/\{\{issue_type\}\}/g,        sr.issue_type || '')
+        .replace(/\{\{status\}\}/g,            sr.status || '')
+        .replace(/\{\{priority\}\}/g,          sr.priority || '')
+        .replace(/\{\{resolution\}\}/g,        sr.resolution || '—')
+        .replace(/\{\{company_name\}\}/g,      senderName)
+        .replace(/\{\{account\}\}/g,           sr.account || '')
+    }
+
+    const subject = evalPlaceholders(finalSubjectTemplate)
+    const body = evalPlaceholders(finalBodyTemplate)
+
+    const { data: currentLog } = await sb.from('step_email_logs')
+      .select('*')
+      .eq('sr_id', srId)
+      .eq('step_id', stepId)
+      .maybeSingle()
+    const attemptsCount = (currentLog?.attempts || 0) + 1
+
+    const upsertLog = async (status, errMsg = null, sentAt = null) => {
+      const logData = {
+        sr_id: srId,
+        step_id: stepId,
+        recipient: recipientStr || '(No Recipient)',
+        subject,
+        body,
+        status,
+        attempts: attemptsCount,
+        error_msg: errMsg,
+        last_attempt_at: new Date().toISOString()
+      }
+      if (sentAt) logData.sent_at = sentAt
+      if (currentLog?.id) {
+        await sb.from('step_email_logs').update(logData).eq('id', currentLog.id)
+      } else {
+        await sb.from('step_email_logs').insert(logData)
+      }
+    }
+
+    if (!recipientStr) {
+      const errMsg = 'No valid recipient email address could be resolved.'
+      await upsertLog('failed', errMsg)
+      toast(`Automated email failed: \${errMsg}`, 'error')
+      return false
+    }
+
+    if (!profile?.smtp_email || !profile?.smtp_password) {
+      const errMsg = 'SMTP credentials not configured in profile settings.'
+      await upsertLog('failed', errMsg)
+      toast(`Automated email failed: \${errMsg}. Please configure Settings.`, 'error')
+      return false
+    }
+
+    await loadSmtpJs()
+    const sentResult = await Email.send({
+      SecureToken: null,
+      Host:     CFG.smtpHost,
+      Username: profile.smtp_email,
+      Password: profile.smtp_password,
+      Port:     CFG.smtpPort,
+      To:       recipientStr,
+      From:     `\${profile.name || profile.smtp_email} <\${profile.smtp_email}>`,
+      Subject:  subject,
+      Body:     body,
+    })
+
+    if (sentResult === 'OK') {
+      await upsertLog('sent', null, new Date().toISOString())
+      await sb.from('notification_logs').insert({
+        channel: 'email',
+        sr_id: srId,
+        recipient: recipientStr,
+        subject,
+        body,
+        template_id: step.email_template || null,
+        status: 'sent',
+        sent_by: ME.id
+      })
+      await sb.from('audit_log').insert({
+        action: 'EMAIL_SENT',
+        user_id: ME.id,
+        target_id: srId,
+        target_type: 'sr',
+        description: `Automated email sent to \${recipientStr} for step "\${step.name}"`
+      })
+      return true
+    } else {
+      const errMsg = typeof sentResult === 'string' ? sentResult : 'Unknown SMTPJS error'
+      await upsertLog('failed', errMsg)
+      toast(`Automated email SMTP error: \${errMsg}`, 'error')
+      return false
+    }
+  } catch (e) {
+    console.error('SMTP execution error:', e)
+    const errMsg = e.message || 'Network or relay exception'
+    try {
+      const { data: cLog } = await sb.from('step_email_logs').select('id,attempts').eq('sr_id', srId).eq('step_id', stepId).maybeSingle()
+      const atts = (cLog?.attempts || 0) + 1
+      const logData = {
+        sr_id: srId,
+        step_id: stepId,
+        recipient: '(Error)',
+        subject: 'Automated Step Email',
+        body: 'Error executing SMTP',
+        status: 'failed',
+        attempts: atts,
+        error_msg: errMsg,
+        last_attempt_at: new Date().toISOString()
+      }
+      if (cLog?.id) {
+        await sb.from('step_email_logs').update(logData).eq('id', cLog.id)
+      } else {
+        await sb.from('step_email_logs').insert(logData)
+      }
+    } catch(errLog) {
+      console.error('Failed to write failure log:', errLog)
+    }
+    toast(`Automated email error: \${errMsg}`, 'error')
+    return false
+  }
 }
 
 function replacePlaceholders(str, sr, senderName) {
@@ -1745,6 +2054,7 @@ async function pgRoutes(pc) {
                   <div style="font-size:.75rem;color:var(--text-muted)">${s.assigned_role} ${s.sla_hours?`· SLA ${s.sla_hours}h`:''}</div>
                 </div>
                 ${['Admin','Manager'].includes(ME?.role)?`
+                <button class="btn btn-ghost btn-sm" onclick="openEditStep('${s.id}','${selectedRoute.id}')">Edit</button>
                 <button class="btn btn-ghost btn-sm" onclick="moveStep('${s.id}','up','${selectedRoute.id}')" ${i===0?'disabled':''}>↑</button>
                 <button class="btn btn-ghost btn-sm" onclick="moveStep('${s.id}','down','${selectedRoute.id}')" ${i===selectedSteps.length-1?'disabled':''}>↓</button>
                 <button class="btn btn-ghost btn-sm text-red" onclick="deleteStep('${s.id}','${selectedRoute.id}')">✕</button>`:''}
@@ -1853,6 +2163,304 @@ async function submitAddStep(routeId) {
     is_required:true,
   })
   closeModalForce(); toast('✓ Step added'); nav('routes')
+}
+
+async function openEditStep(stepId, routeId) {
+  const { data: step } = await sb.from('route_steps').select('*').eq('id', stepId).single()
+  if (!step) { toast('Could not load step details', 'error'); return }
+  const { data: templates } = await sb.from('templates').select('*').eq('type','email').eq('is_active',true).order('name')
+
+  let activeTab = 'general' // 'general' | 'email' | 'preview'
+  
+  // Set up values
+  const name = step.name || ''
+  const desc = step.description || ''
+  const role = step.assigned_role || 'Technical'
+  const sla = step.sla_hours || ''
+  const emailEnabled = step.email_enabled || false
+  const emailTemplate = step.email_template || ''
+  const emailRecipients = step.email_recipients || 'customer'
+  const emailSubject = step.email_subject || ''
+  const emailBody = step.email_body || ''
+  
+  function renderModalContent() {
+    return `
+      <div class="modal-header">
+        <div class="modal-title">Edit Step — ${escHtml(name)}</div>
+      </div>
+      <div class="modal-tabs" style="display:flex;gap:4px;border-bottom:1px solid var(--border);padding:0 24px;margin-bottom:8px">
+        <button class="tab-btn ${activeTab==='general'?'active':''}" onclick="switchStepModalTab('general')" style="padding:10px 14px;font-size:.8rem">General</button>
+        <button class="tab-btn ${activeTab==='email'?'active':''}" onclick="switchStepModalTab('email')" style="padding:10px 14px;font-size:.8rem">Email Automation</button>
+        <button class="tab-btn ${activeTab==='preview'?'active':''}" onclick="switchStepModalTab('preview')" style="padding:10px 14px;font-size:.8rem">Live Preview</button>
+      </div>
+      <div class="modal-body" style="padding-top:10px">
+        <div id="step-tab-general" class="${activeTab==='general'?'':'hidden'}" style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group"><label class="form-label req">Step Name</label>
+            <input class="form-input" id="es-name" value="${escHtml(name)}" placeholder="e.g. Initial Assessment"/></div>
+          <div class="form-group"><label class="form-label">Description</label>
+            <textarea class="form-textarea" id="es-desc" rows="2">${escHtml(desc)}</textarea></div>
+          <div class="form-row">
+            <div class="form-group"><label class="form-label">Assigned Role</label>
+              <select class="form-select" id="es-role">
+                ${ROLES.map(r=>`<option ${r===role?'selected':''}>${r}</option>`).join('')}
+              </select></div>
+            <div class="form-group"><label class="form-label">SLA Hours</label>
+              <input class="form-input" id="es-sla" type="number" value="${sla}" placeholder="e.g. 24"/></div>
+          </div>
+        </div>
+        <div id="step-tab-email" class="${activeTab==='email'?'':'hidden'}" style="display:flex;flex-direction:column;gap:14px">
+          <div class="form-group" style="flex-direction:row;justify-content:space-between;align-items:center;padding:4px 0">
+            <div>
+              <div style="font-weight:600;font-size:.85rem">Enable Automated Email Trigger</div>
+              <div style="font-size:.75rem;color:var(--text-muted)">Send email automatically when a user completes this step</div>
+            </div>
+            <input type="checkbox" id="es-email-enabled" ${emailEnabled?'checked':''} style="width:18px;height:18px;cursor:pointer"/>
+          </div>
+          
+          <div id="es-email-config" class="${emailEnabled?'':'hidden'}" style="display:flex;flex-direction:column;gap:14px">
+            <div class="form-group">
+              <label class="form-label">Email Template (Optional)</label>
+              <select class="form-select" id="es-email-template" onchange="onStepTemplateChange(this.value)">
+                <option value="">-- Custom Template (No inheritance) --</option>
+                ${templates?.map(t=>`<option value="${t.id}" ${t.id===emailTemplate?'selected':''}>${escHtml(t.name)}</option>`).join('')}
+              </select>
+              <div class="form-hint">Selecting a template will auto-populate and inherit subject/body defaults.</div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label req">Recipients</label>
+              <div style="display:flex;gap:16px;margin:4px 0;flex-wrap:wrap">
+                <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+                  <input type="checkbox" class="es-recipient-chk" value="customer" ${emailRecipients.includes('customer')?'checked':''}/> Customer Email
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+                  <input type="checkbox" class="es-recipient-chk" value="owner" ${emailRecipients.includes('owner')?'checked':''}/> SR Owner
+                </label>
+                <label style="display:flex;align-items:center;gap:6px;font-size:.85rem;cursor:pointer">
+                  <input type="checkbox" class="es-recipient-chk" value="creator" ${emailRecipients.includes('creator')?'checked':''}/> SR Creator
+                </label>
+              </div>
+              <input class="form-input" id="es-custom-recipients" value="${escHtml(emailRecipients.split(',').filter(x=>!['customer','owner','creator'].includes(x.trim())).join(', '))}" placeholder="Additional comma-separated emails…"/>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label req">Subject Template Override</label>
+              <input class="form-input" id="es-subject" value="${escHtml(emailSubject)}" placeholder="Enter subject template…"/>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label req">Body / Message Template Override</label>
+              <textarea class="form-textarea" id="es-body" rows="6" placeholder="Enter body template…">${escHtml(emailBody)}</textarea>
+              <div style="margin-top:6px">
+                <span style="font-size:.7rem;color:var(--text-muted);font-weight:600;display:block;margin-bottom:4px">Click to insert placeholder:</span>
+                <div style="display:flex;gap:4px;flex-wrap:wrap">
+                  ${['name','email','step_name','route_name','completion_time','company','assigned_user'].map(p=>`
+                    <span class="badge badge-low" style="cursor:pointer" onclick="insertStepPlaceholder('${p}')">{{${p}}}</span>
+                  `).join('')}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div id="step-tab-preview" class="${activeTab==='preview'?'':'hidden'}" style="display:flex;flex-direction:column;gap:14px">
+          <div class="card" style="background:#090b0f;border:1px solid var(--border);padding:14px;display:flex;flex-direction:column;gap:10px">
+            <div>
+              <span style="font-size:.7rem;color:var(--text-muted);font-weight:600;text-transform:uppercase">To:</span>
+              <span id="esp-to" style="font-size:.85rem;font-weight:500;margin-left:8px;color:var(--accent)">john.doe@example.com</span>
+            </div>
+            <div style="border-top:1px solid #141820;padding-top:6px">
+              <span style="font-size:.7rem;color:var(--text-muted);font-weight:600;text-transform:uppercase">Subject:</span>
+              <span id="esp-subject" style="font-size:.85rem;font-weight:700;margin-left:8px">Loading subject…</span>
+            </div>
+            <div style="border-top:1px solid #141820;padding-top:10px;white-space:pre-wrap;font-size:.85rem;color:var(--text-secondary);min-height:120px" id="esp-body">
+              Loading body…
+            </div>
+          </div>
+          <div style="font-size:.75rem;color:var(--text-muted)">
+            * Previews are rendered dynamically using mock values representing a sample service request.
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitEditStep('${stepId}','${routeId}')">Save Changes</button>
+      </div>
+    `
+  }
+
+  window.switchStepModalTab = (tabName) => {
+    const nameVal = document.getElementById('es-name')?.value || ''
+    const descVal = document.getElementById('es-desc')?.value || ''
+    const roleVal = document.getElementById('es-role')?.value || 'Technical'
+    const slaVal = document.getElementById('es-sla')?.value || ''
+    const enabledVal = document.getElementById('es-email-enabled')?.checked || false
+    const tplVal = document.getElementById('es-email-template')?.value || ''
+    const subVal = document.getElementById('es-subject')?.value || ''
+    const bdyVal = document.getElementById('es-body')?.value || ''
+    
+    activeTab = tabName
+    
+    const m = document.querySelector('.modal')
+    if (m) {
+      m.innerHTML = renderModalContent()
+      
+      const cfgArea = document.getElementById('es-email-config')
+      if (cfgArea) {
+        if (enabledVal) cfgArea.classList.remove('hidden')
+        else cfgArea.classList.add('hidden')
+      }
+      
+      const toggle = document.getElementById('es-email-enabled')
+      if (toggle) {
+        toggle.onchange = (e) => {
+          const ca = document.getElementById('es-email-config')
+          if (ca) {
+            if (e.target.checked) ca.classList.remove('hidden')
+            else ca.classList.add('hidden')
+          }
+        }
+      }
+      
+      if (tabName === 'preview') {
+        renderLivePreview(tplVal, subVal, bdyVal, nameVal)
+      }
+    }
+  }
+
+  window.onStepTemplateChange = async (tplId) => {
+    if (!tplId) return
+    const { data: tpl } = await sb.from('templates').select('*').eq('id', tplId).single()
+    if (tpl) {
+      const subjEl = document.getElementById('es-subject')
+      const bodyEl = document.getElementById('es-body')
+      if (subjEl) subjEl.value = tpl.subject || ''
+      if (bodyEl) bodyEl.value = tpl.body || ''
+    }
+  }
+
+  window.insertStepPlaceholder = (placeholder) => {
+    const el = document.getElementById('es-body')
+    if (!el) return
+    const start = el.selectionStart
+    const end = el.selectionEnd
+    const text = el.value
+    el.value = text.substring(0, start) + `{{${placeholder}}}` + text.substring(end)
+    el.focus()
+    el.selectionStart = el.selectionEnd = start + placeholder.length + 4
+  }
+
+  async function renderLivePreview(templateId, customSubject, customBody, stepName) {
+    const mockSR = {
+      sr_number: 'SR-2026-1001',
+      customer_name: 'John Doe',
+      customer_email: 'john.doe@example.com',
+      owner_name: 'Sidharth Kumar',
+      issue_type: 'Technical Support',
+      issue_description: 'Server is slow and unresponsive',
+      status: 'In Progress',
+      priority: 'High',
+      resolution: 'Rebooted server and cleared log caches',
+      company_name: 'SKS 3D',
+      account: 'Acme Corp',
+      route_name: 'IT Support Route'
+    }
+
+    let finalSubj = customSubject
+    let finalBody = customBody
+    
+    if (templateId && (!finalSubj || !finalBody)) {
+      const { data: tpl } = await sb.from('templates').select('*').eq('id', templateId).single()
+      if (tpl) {
+        finalSubj = finalSubj || tpl.subject || ''
+        finalBody = finalBody || tpl.body || ''
+      }
+    }
+    
+    finalSubj = finalSubj || `Update on Service Request ${mockSR.sr_number}`
+    finalBody = finalBody || `Your SR ${mockSR.sr_number} status is now: ${mockSR.status}`
+
+    const recs = []
+    const chks = document.querySelectorAll('.es-recipient-chk')
+    chks?.forEach(c => { if (c.checked) recs.push(c.value === 'customer' ? mockSR.customer_email : c.value === 'owner' ? 'sidharth.kumar@sks3d.com' : 'creator@sks3d.com') })
+    const custRecs = document.getElementById('es-custom-recipients')?.value?.trim()
+    if (custRecs) recs.push(custRecs)
+    
+    const toEl = document.getElementById('esp-to')
+    if (toEl) toEl.textContent = recs.length ? recs.join(', ') : '(No recipients selected)'
+    
+    const evalPlaceholders = (str) => {
+      if (!str) return ''
+      return str
+        .replace(/\{\{name\}\}/g,             mockSR.customer_name)
+        .replace(/\{\{email\}\}/g,            mockSR.customer_email)
+        .replace(/\{\{step_name\}\}/g,        stepName || 'Initial Assessment')
+        .replace(/\{\{route_name\}\}/g,       mockSR.route_name)
+        .replace(/\{\{completion_time\}\}/g,  new Date().toLocaleString())
+        .replace(/\{\{company\}\}/g,          mockSR.company_name)
+        .replace(/\{\{assigned_user\}\}/g,    mockSR.owner_name)
+        .replace(/\{\{sr_number\}\}/g,         mockSR.sr_number)
+        .replace(/\{\{customer_name\}\}/g,     mockSR.customer_name)
+        .replace(/\{\{owner_name\}\}/g,        mockSR.owner_name)
+        .replace(/\{\{issue_type\}\}/g,        mockSR.issue_type)
+        .replace(/\{\{status\}\}/g,            mockSR.status)
+        .replace(/\{\{priority\}\}/g,          mockSR.priority)
+        .replace(/\{\{resolution\}\}/g,        mockSR.resolution)
+        .replace(/\{\{company_name\}\}/g,      mockSR.company_name)
+        .replace(/\{\{account\}\}/g,           mockSR.account)
+    }
+
+    const subEl = document.getElementById('esp-subject')
+    if (subEl) subEl.textContent = evalPlaceholders(finalSubj)
+    
+    const bdyEl = document.getElementById('esp-body')
+    if (bdyEl) bdyEl.textContent = evalPlaceholders(finalBody)
+  }
+
+  window.submitEditStep = async (sId, rId) => {
+    const nameVal = document.getElementById('es-name')?.value?.trim()
+    if (!nameVal) { toast('Step name is required', 'error'); return }
+    
+    const descVal = document.getElementById('es-desc')?.value || null
+    const roleVal = document.getElementById('es-role')?.value || 'Technical'
+    const slaVal = document.getElementById('es-sla')?.value ? parseInt(document.getElementById('es-sla').value) : null
+    
+    const emailEnabledVal = document.getElementById('es-email-enabled')?.checked || false
+    const emailTemplateVal = document.getElementById('es-email-template')?.value || null
+    
+    const recs = []
+    const chks = document.querySelectorAll('.es-recipient-chk')
+    chks?.forEach(c => { if (c.checked) recs.push(c.value) })
+    const custRecs = document.getElementById('es-custom-recipients')?.value?.trim()
+    if (custRecs) recs.push(custRecs)
+    const emailRecipientsVal = recs.join(',')
+    
+    const emailSubjectVal = document.getElementById('es-subject')?.value || null
+    const emailBodyVal = document.getElementById('es-body')?.value || null
+    
+    const updateData = {
+      name: nameVal,
+      description: descVal,
+      assigned_role: roleVal,
+      sla_hours: slaVal,
+      email_enabled: emailEnabledVal,
+      email_template: emailTemplateVal || null,
+      email_recipients: emailRecipientsVal,
+      email_subject: emailSubjectVal,
+      email_body: emailBodyVal
+    }
+    
+    const { error } = await sb.from('route_steps').update(updateData).eq('id', sId)
+    if (error) {
+      toast(`✗ Update failed: ${error.message}`, 'error')
+    } else {
+      closeModalForce()
+      toast('✓ Step updated successfully')
+      selectRoute(rId)
+    }
+  }
+
+  modal(`<div class="modal-body">Loading...</div>`, 'modal-md')
+  switchStepModalTab('general')
 }
 
 // ═══════════════════════════════════════════════════════════
