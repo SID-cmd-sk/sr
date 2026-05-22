@@ -408,13 +408,20 @@ function initSupabaseClient() {
     return false
   }
   const { createClient } = supabase
-  sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon, {
+  const storedSession = getStoredSupabaseSession()
+  const options = {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
     },
-  })
+  }
+  if (storedSession?.access_token) {
+    options.global = {
+      headers: { Authorization: `Bearer ${storedSession.access_token}` },
+    }
+  }
+  sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon, options)
   return true
 }
 
@@ -466,19 +473,19 @@ window.addEventListener('load', async () => {
     })
 
     // Step 4: Restore an existing session on hard refresh/direct load.
-    let { data } = await sb.auth.getSession()
-    if (!data.session) {
-      const storedSession = getStoredSupabaseSession()
-      if (storedSession?.access_token && storedSession?.refresh_token) {
-        const restored = await sb.auth.setSession({
-          access_token: storedSession.access_token,
-          refresh_token: storedSession.refresh_token,
-        })
-        data = restored.data
-      }
+    const storedSession = getStoredSupabaseSession()
+    let sessionUser = storedSession?.user || null
+    if (!sessionUser) {
+      const result = await withTimeout(
+        sb.auth.getSession(),
+        5000,
+        'Session restore timed out'
+      ).catch(() => ({ data: { session: null } }))
+      sessionUser = result.data.session?.user || null
     }
-    if (data.session?.user) {
-      await loadProfile(data.session.user.id)
+
+    if (sessionUser) {
+      await loadProfile(sessionUser.id)
       showApp()
       routeFromHash()
     } else {
@@ -639,6 +646,12 @@ document.addEventListener('keydown', e => {
 
 async function doLogout() {
   try {
+    sessionStorage.clear()
+    localStorage.removeItem('device_fingerprint')
+    Object.keys(localStorage)
+      .filter(key => key.startsWith('sb-') && key.includes('auth-token'))
+      .forEach(key => localStorage.removeItem(key))
+
     if (ME) {
       await withTimeout(auditLog('LOGOUT', ME.id, 'user', 'User logged out', {}), 5000, 'Logout audit timed out')
     }
@@ -649,12 +662,6 @@ async function doLogout() {
   } catch (error) {
     console.error('Logout error:', error)
   } finally {
-    sessionStorage.clear()
-    localStorage.removeItem('device_fingerprint')
-    Object.keys(localStorage)
-      .filter(key => key.startsWith('sb-') && key.includes('auth-token'))
-      .forEach(key => localStorage.removeItem(key))
-
     window.location.href = 'login.html'
   }
 }
