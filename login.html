@@ -76,7 +76,13 @@ async function initSupabase() {
     }
     
     const { createClient } = supabase
-    sb = createClient(SUPABASE_URL, SUPABASE_ANON)
+    sb = createClient(SUPABASE_URL, SUPABASE_ANON, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
+    })
   } catch (error) {
     console.error('Failed to initialize Supabase:', error)
     document.body.innerHTML = '<div style="color: red; padding: 20px;">Configuration error. Please check config.js.</div>'

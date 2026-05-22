@@ -408,7 +408,13 @@ function initSupabaseClient() {
     return false
   }
   const { createClient } = supabase
-  sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon)
+  sb = createClient(CFG.supabaseUrl, CFG.supabaseAnon, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+    },
+  })
   return true
 }
 
@@ -420,6 +426,16 @@ const ISSUE_TYPES = ['Hardware Failure','Software Issue','Network Problem','Acce
 const PRIORITIES  = ['Low','Medium','High','Critical']
 const STATUSES    = ['Open','In Progress','Pending','Closed','Archived']
 const ROLES       = ['Admin','Manager','Technical','User','Viewer']
+
+function getStoredSupabaseSession() {
+  try {
+    const key = Object.keys(localStorage)
+      .find(k => k.startsWith('sb-') && k.includes('auth-token'))
+    return key ? JSON.parse(localStorage.getItem(key)) : null
+  } catch {
+    return null
+  }
+}
 
 // ── Boot ────────────────────────────────────────────────────
 window.addEventListener('load', async () => {
@@ -443,14 +459,24 @@ window.addEventListener('load', async () => {
         await loadProfile(session.user.id)
         showApp()
         routeFromHash()
-      } else {
+      } else if (event === 'SIGNED_OUT') {
         ME = null
         showAuth()
       }
     })
 
     // Step 4: Restore an existing session on hard refresh/direct load.
-    const { data } = await sb.auth.getSession()
+    let { data } = await sb.auth.getSession()
+    if (!data.session) {
+      const storedSession = getStoredSupabaseSession()
+      if (storedSession?.access_token && storedSession?.refresh_token) {
+        const restored = await sb.auth.setSession({
+          access_token: storedSession.access_token,
+          refresh_token: storedSession.refresh_token,
+        })
+        data = restored.data
+      }
+    }
     if (data.session?.user) {
       await loadProfile(data.session.user.id)
       showApp()
