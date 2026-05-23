@@ -1357,6 +1357,22 @@ async function initializeConfig() {
   } catch(e) { console.error('Config error:', e); return false }
 }
 
+// Load drive + WA settings from DB into CFG (called after sb is ready)
+async function loadRuntimeConfig() {
+  try {
+    const [{ data:drv }, { data:wa }] = await Promise.all([
+      sb.from('settings').select('value').eq('key','drive').single(),
+      sb.from('settings').select('value').eq('key','whatsapp').single(),
+    ])
+    if (drv?.value?.apps_script_url)   CFG.appsScriptUrl   = drv.value.apps_script_url
+    if (drv?.value?.apps_script_token) CFG.appsScriptToken = drv.value.apps_script_token
+    if (drv?.value?.sr_folder_id)      CFG.srFolderId      = drv.value.sr_folder_id
+    if (wa?.value?.bridge_url)         CFG.waBridgeUrl     = wa.value.bridge_url || 'http://localhost:3001'
+    // fallback to localhost if nothing saved
+    if (!CFG.waBridgeUrl) CFG.waBridgeUrl = 'http://localhost:3001'
+  } catch(e) { console.warn('Runtime config load error:', e) }
+}
+
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
@@ -1392,7 +1408,7 @@ window.addEventListener('load', async () => {
       const r = await withTimeout(sb.auth.getSession(), 6000, 'Session timeout').catch(() => ({ data:{ session:null } }))
       sessionUser = r.data.session?.user || null
     }
-    if (sessionUser) { await loadProfile(sessionUser.id); showApp(); routeFromHash() }
+    if (sessionUser) { await loadProfile(sessionUser.id); await loadRuntimeConfig(); showApp(); routeFromHash() }
     else showAuth()
     sb.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) { await loadProfile(session.user.id); showApp(); routeFromHash() }
@@ -2416,7 +2432,7 @@ async function syncSheetsRow(srId, status, resolvedAt, resolution) {
   if (!sr) return
   fetch(CFG.appsScriptUrl, {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ token:CFG.appsScriptToken, action:'update_sr_row', sr_number:sr.sr_number, status, resolved_at:resolvedAt, resolution, owner_name:sr.owner_name }),
+    body: JSON.stringify({ token:CFG.appsScriptToken, timestamp:Date.now().toString(), action:'update_sr_row', sr_number:sr.sr_number, status, resolved_at:resolvedAt, resolution, owner_name:sr.owner_name }),
   }).catch(()=>{})
 }
 async function createDriveFolder(srId) {
@@ -2424,17 +2440,18 @@ async function createDriveFolder(srId) {
   const { data:sr } = await sb.from('sr_list').select('*').eq('id',srId).single()
   if (!sr) return
   const year = new Date().getFullYear().toString()
+  const _ts = () => Date.now().toString()
   fetch(CFG.appsScriptUrl, {
     method:'POST', headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ token:CFG.appsScriptToken, action:'create_sr_folder', sr_number:sr.sr_number, year }),
+    body: JSON.stringify({ token:CFG.appsScriptToken, timestamp:_ts(), action:'create_sr_folder', sr_number:sr.sr_number, year }),
   }).then(r=>r.json()).then(async d => {
     if (d.ok) {
       await sb.from('sr').update({ drive_folder_url:d.folder_url, drive_folder_id:d.folder_id }).eq('id', srId)
       fetch(CFG.appsScriptUrl, { method:'POST', headers:{'Content-Type':'application/json'},
-        body: JSON.stringify({ token:CFG.appsScriptToken, action:'append_sr_row', sr_number:sr.sr_number, status:sr.status, reported_at:sr.reported_at, account:sr.account, customer_name:sr.customer_name, customer_contact:sr.customer_contact, customer_email:sr.customer_email, issue_type:sr.issue_type, issue_description:sr.issue_description, owner_name:sr.owner_name, creator_name:sr.creator_name, priority:sr.priority, route_name:sr.route_name, folder_url:d.folder_url }),
+        body: JSON.stringify({ token:CFG.appsScriptToken, timestamp:_ts(), action:'append_sr_row', sr_number:sr.sr_number, status:sr.status, reported_at:sr.reported_at, account:sr.account, customer_name:sr.customer_name, customer_contact:sr.customer_contact, customer_email:sr.customer_email, issue_type:sr.issue_type, issue_description:sr.issue_description, owner_name:sr.owner_name, creator_name:sr.creator_name, priority:sr.priority, route_name:sr.route_name, folder_url:d.folder_url }),
       }).catch(()=>{})
-    }
-  }).catch(()=>{})
+    } else { console.warn('Drive folder creation failed:', d.error) }
+  }).catch(e => console.error('Drive folder error:', e))
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -3420,10 +3437,9 @@ async function deleteTemplate(id) {
 // PAGE: WHATSAPP
 // ═══════════════════════════════════════════════════════════
 function isLocalBridge(url) {
-  try {
-    const u = new URL(url)
-    return ['localhost','127.0.0.1'].includes(u.hostname) && !['localhost','127.0.0.1'].includes(location.hostname)
-  } catch { return true }
+  // Allow localhost bridge even from GitHub Pages — same pattern as email relay.
+  // If the bridge isn't running, fetch will fail and show 'Bridge offline'.
+  return false
 }
 
 async function pgWhatsApp(pc) {
