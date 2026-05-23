@@ -2197,18 +2197,28 @@ async function sendWABySRId(srId) {
 // ═══════════════════════════════════════════════════════════
 // EMAIL ENGINE
 // ═══════════════════════════════════════════════════════════
-let smtpJsPromise = null
-function loadSmtpJs() {
-  if (window.Email?.send) return Promise.resolve()
-  if (smtpJsPromise) return smtpJsPromise
-  smtpJsPromise = new Promise((resolve, reject) => {
-    const s = document.createElement('script')
-    s.src = 'https://smtpjs.com/v3/smtp.js'
-    s.onload  = () => window.Email?.send ? resolve() : reject(new Error('SMTP init failed'))
-    s.onerror = () => reject(new Error('SMTP library load failed'))
-    document.head.appendChild(s)
+// ── Direct SMTP relay via Supabase Edge Function ──────────
+// smtpjs.com removed: it required a SecureToken and its CDN
+// was unreliable from the browser. All sends now go through
+// the Supabase Edge Function  "send-email"  which runs
+// server-side and talks directly to smtpout.secureserver.net.
+async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body }) {
+  const { data: { session } } = await sb.auth.getSession()
+  const res = await fetch(`${CFG.supabaseUrl}/functions/v1/send-email`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session?.access_token || CFG.supabaseAnon}`,
+    },
+    body: JSON.stringify({ host, port, username, password, to, from: fromAddr, subject, body }),
   })
-  return smtpJsPromise
+  if (!res.ok) {
+    const err = await res.text().catch(() => res.statusText)
+    throw new Error(err || 'Edge function error')
+  }
+  const json = await res.json().catch(() => ({}))
+  if (json.error) throw new Error(json.error)
+  return 'OK'
 }
 
 function replacePlaceholders(str, sr, senderName, extra = {}) {
@@ -2263,24 +2273,19 @@ async function sendEmailFromBrowser(srId, templateId = null, customSubject = nul
   if (!recipient) { toast('No recipient email on this SR', 'error'); return false }
 
   try {
-    await loadSmtpJs()
-    const sent = await Email.send({
-      SecureToken: null,
-      Host:     CFG.smtpHost,
-      Username: profile.smtp_email,
-      Password: profile.smtp_password,
-      Port:     CFG.smtpPort,
-      To:       recipient,
-      From:     `${profile.name||profile.smtp_email} <${profile.smtp_email}>`,
-      Subject:  subject,
-      Body:     body,
+    await smtpSend({
+      host:     CFG.smtpHost,
+      port:     CFG.smtpPort,
+      username: profile.smtp_email,
+      password: profile.smtp_password,
+      to:       recipient,
+      from:     `${profile.name||profile.smtp_email} <${profile.smtp_email}>`,
+      subject,
+      body,
     })
-    const ok = sent === 'OK'
-    if (ok) {
-      await sb.from('notification_logs').insert({ channel:'email', sr_id:srId, recipient, subject, body, template_id:templateId||null, status:'sent', sent_by:ME.id })
-      await auditLog('EMAIL_SENT', srId, 'sr', `Email sent to ${recipient}`)
-    }
-    return ok
+    await sb.from('notification_logs').insert({ channel:'email', sr_id:srId, recipient, subject, body, template_id:templateId||null, status:'sent', sent_by:ME.id })
+    await auditLog('EMAIL_SENT', srId, 'sr', `Email sent to ${recipient}`)
+    return true
   } catch(e) { console.error('Email send error:', e); return false }
 }
 
@@ -2361,30 +2366,20 @@ async function triggerStepEmail(srId, stepId, forceSend = false) {
     const attempts = (currentLog?.attempts||0) + 1
 
     try {
-      await loadSmtpJs()
-      const result = await Email.send({
-        SecureToken: null,
-        Host:     CFG.smtpHost,
-        Username: profile.smtp_email,
-        Password: profile.smtp_password,
-        Port:     CFG.smtpPort,
-        To:       recipientStr,
-        From:     `${senderName} <${profile.smtp_email}>`,
-        Subject:  subject,
-        Body:     body,
+      await smtpSend({
+        host:     CFG.smtpHost,
+        port:     CFG.smtpPort,
+        username: profile.smtp_email,
+        password: profile.smtp_password,
+        to:       recipientStr,
+        from:     `${senderName} <${profile.smtp_email}>`,
+        subject,
+        body,
       })
-
-      if (result === 'OK') {
-        await upsertEmailLog(srId, stepId, { status:'sent', recipient:recipientStr, subject, body, attempts, sent_at:new Date().toISOString(), error_msg:null }, currentLog?.id)
-        await sb.from('notification_logs').insert({ channel:'email', sr_id:srId, recipient:recipientStr, subject, body, template_id:step.email_template||null, status:'sent', sent_by:ME.id })
-        await auditLog('EMAIL_SENT', srId, 'sr', `Auto email sent to ${recipientStr} for step "${step.name}"`)
-        return true
-      } else {
-        const errMsg = typeof result === 'string' ? result : 'Unknown SMTP error'
-        await upsertEmailLog(srId, stepId, { status:'failed', recipient:recipientStr, subject, body, attempts, error_msg:errMsg }, currentLog?.id)
-        toast(`Auto email error: ${errMsg}`, 'error')
-        return false
-      }
+      await upsertEmailLog(srId, stepId, { status:'sent', recipient:recipientStr, subject, body, attempts, sent_at:new Date().toISOString(), error_msg:null }, currentLog?.id)
+      await sb.from('notification_logs').insert({ channel:'email', sr_id:srId, recipient:recipientStr, subject, body, template_id:step.email_template||null, status:'sent', sent_by:ME.id })
+      await auditLog('EMAIL_SENT', srId, 'sr', `Auto email sent to ${recipientStr} for step "${step.name}"`)
+      return true
     } catch(smtpErr) {
       const errMsg = smtpErr.message || 'SMTP exception'
       await upsertEmailLog(srId, stepId, { status:'failed', recipient:recipientStr||'(error)', subject:subject||'', body:body||'', attempts, error_msg:errMsg }, currentLog?.id).catch(()=>{})
@@ -3886,10 +3881,8 @@ async function pgSettings(pc) {
       if (el) { el.textContent='Sending test…'; el.style.color='var(--text-3)' }
       await sb.from('users').update({ smtp_email:em, smtp_password:pw }).eq('id', ME.id)
       try {
-        await loadSmtpJs()
-        const sent = await Email.send({ SecureToken:null, Host:CFG.smtpHost, Username:em, Password:pw, Port:CFG.smtpPort, To:em, From:em, Subject:'SR Platform — Test Email', Body:'Your email credentials are configured correctly.' })
-        const ok = sent === 'OK'
-        if (el) { el.textContent=ok?`✓ Test sent to ${em}`:'✗ Failed — check credentials'; el.style.color=ok?'var(--green)':'var(--red)' }
+        await smtpSend({ host:CFG.smtpHost, port:CFG.smtpPort, username:em, password:pw, to:em, from:em, subject:'SR Platform — Test Email', body:'Your email credentials are configured correctly.' })
+        if (el) { el.textContent=`✓ Test sent to ${em}`; el.style.color='var(--green)' }
       } catch(e) {
         if (el) { el.textContent='✗ Error: '+e.message; el.style.color='var(--red)' }
       }
