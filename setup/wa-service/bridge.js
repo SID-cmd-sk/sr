@@ -192,8 +192,6 @@ app.post('/send', async (req, res) => {
     console.error('[WA] Send error:', err.message)
     res.json({ ok: false, error: err.message })
   }
-}
-  }
 })
 
 app.post('/send-template', async (req, res) => {
