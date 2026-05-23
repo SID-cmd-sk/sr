@@ -1,2 +1,3 @@
 .env
 /setup/wa-service/node_modules/yargs-parser
+/setup/wa-service/node_modules
