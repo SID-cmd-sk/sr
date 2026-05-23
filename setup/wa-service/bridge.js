@@ -27,7 +27,7 @@ const PORT           = parseInt(process.env.WA_PORT    ?? '3001')
 const AUTH_DIR       = process.env.WA_AUTH_DIR         ?? path.join(__dirname, 'wa_auth')
 const ALLOWED_ORIGINS = process.env.WA_ALLOWED_ORIGINS 
   ? process.env.WA_ALLOWED_ORIGINS.split(',') 
-  : ['http://localhost:3000', 'http://localhost:5173']  // Secure default
+  : ['http://localhost:3000', 'http://localhost:5173', 'https://sid-cmd-sk.github.io']
 
 // ─── Rate Limiting ────────────────────────────────────────────
 // Simple in-memory rate limiter (use Redis in production)
@@ -78,7 +78,7 @@ app.use((req, res, next) => {
     res.setHeader('Access-Control-Allow-Origin', origin)
   } else if (!origin) {
     // Same-origin requests (no Origin header)
-    res.setHeader('Access-Control-Allow-Origin', 'http://localhost:3000')
+    res.setHeader('Access-Control-Allow-Origin', '*')
   } else {
     // Origin not allowed - still respond to OPTIONS but don't allow
     console.warn(`[CORS] Blocked request from unauthorized origin: ${origin}`)
