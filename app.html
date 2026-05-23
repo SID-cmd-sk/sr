@@ -2197,27 +2197,24 @@ async function sendWABySRId(srId) {
 // ═══════════════════════════════════════════════════════════
 // EMAIL ENGINE
 // ═══════════════════════════════════════════════════════════
-// ── Direct SMTP relay via Supabase Edge Function ──────────
-// smtpjs.com removed: it required a SecureToken and its CDN
-// was unreliable from the browser. All sends now go through
-// the Supabase Edge Function  "send-email"  which runs
-// server-side and talks directly to smtpout.secureserver.net.
+// Calls local email_server.py (port 3002) — a dumb SMTP pipe.
+// Credentials come from the browser (user's Supabase profile).
+// Start it with start.bat alongside the WhatsApp bridge.
+
 async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body }) {
-  const { data: { session } } = await sb.auth.getSession()
-  const res = await fetch(`${CFG.supabaseUrl}/functions/v1/send-email`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${session?.access_token || CFG.supabaseAnon}`,
-    },
-    body: JSON.stringify({ host, port, username, password, to, from: fromAddr, subject, body }),
-  })
-  if (!res.ok) {
-    const err = await res.text().catch(() => res.statusText)
-    throw new Error(err || 'Edge function error')
+  const EMAIL_RELAY = 'http://localhost:3002/send-email'
+  let res
+  try {
+    res = await fetch(EMAIL_RELAY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ host, port, username, password, to, from: fromAddr, subject, body }),
+    })
+  } catch (e) {
+    throw new Error('Email relay not running — please start start.bat on the server machine')
   }
   const json = await res.json().catch(() => ({}))
-  if (json.error) throw new Error(json.error)
+  if (!res.ok || json.error) throw new Error(json.error || `Relay error ${res.status}`)
   return 'OK'
 }
 
