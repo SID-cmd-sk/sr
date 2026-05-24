@@ -1408,11 +1408,28 @@ window.addEventListener('load', async () => {
       const r = await withTimeout(sb.auth.getSession(), 6000, 'Session timeout').catch(() => ({ data:{ session:null } }))
       sessionUser = r.data.session?.user || null
     }
-    if (sessionUser) { await loadProfile(sessionUser.id); await loadRuntimeConfig(); showApp(); routeFromHash() }
-    else showAuth()
+    if (sessionUser) {
+      try {
+        await loadProfile(sessionUser.id)
+        await loadRuntimeConfig()
+        showApp()
+        routeFromHash()
+      } catch(e) {
+        console.error('Session profile load failed:', e)
+        showAuth()
+      }
+    } else showAuth()
     unsubscribeAuth = sb.auth.onAuthStateChange(async (event, session) => {
-      if (session?.user) { await loadProfile(session.user.id); showApp(); routeFromHash() }
-      else if (event === 'SIGNED_OUT') { ME = null; showAuth() }
+      if (session?.user) {
+        try {
+          await loadProfile(session.user.id)
+          showApp()
+          routeFromHash()
+        } catch(e) {
+          console.error('Auth state profile load failed:', e)
+          showAuth()
+        }
+      } else if (event === 'SIGNED_OUT') { ME = null; showAuth() }
     })
   } catch(e) { console.error('Boot error:', e); showAuth() }
 })
@@ -1420,22 +1437,28 @@ window.addEventListener('hashchange', routeFromHash)
 
 async function loadProfile(uid) {
   try {
-    const { data } = await sb.from('users').select('*').eq('id', uid).single()
+    const { data, error } = await sb.from('users').select('*').eq('id', uid).single()
+    if (error) throw error
+    if (!data) throw new Error('User profile not found')
     ME = data
-    if (ME) {
-      const name = ME.name ?? ME.email
-      document.getElementById('sidebar-user').textContent = name
-      document.getElementById('header-user').textContent  = name
-      if (!['Admin','Manager'].includes(ME.role)) {
-        document.getElementById('admin-section').classList.add('hidden')
-        const lbl = document.getElementById('admin-section-label')
-        if (lbl) lbl.classList.add('hidden')
-      }
+    const name = ME.name ?? ME.email
+    document.getElementById('sidebar-user').textContent = name
+    document.getElementById('header-user').textContent  = name
+    if (!['Admin','Manager'].includes(ME.role)) {
+      document.getElementById('admin-section').classList.add('hidden')
+      const lbl = document.getElementById('admin-section-label')
+      if (lbl) lbl.classList.add('hidden')
     }
-    const { data: waSet } = await sb.from('settings').select('value').eq('key','whatsapp').single()
+    const { data: waSet, error: waErr } = await sb.from('settings').select('value').eq('key','whatsapp').single()
+    if (waErr) console.warn('WhatsApp settings load error:', waErr)
     if (waSet?.value?.bridge_url) CFG.waBridgeUrl = waSet.value.bridge_url
-    await auditLog('LOGIN', ME?.id, 'user', 'User logged in', {})
-  } catch(e) { console.error('Profile error:', e) }
+    await auditLog('LOGIN', ME.id, 'user', 'User logged in', {})
+    return true
+  } catch(e) {
+    ME = null
+    console.error('Profile error:', e)
+    throw e
+  }
 }
 
 function showAuth() {
@@ -1528,7 +1551,7 @@ function routeFromHash() {
   routeCleanups.forEach(c => { try { c() } catch(e) { console.error('Route cleanup error:', e) } })
   routeCleanups = []
 
-  if (!ME) return
+  if (!ME) { showAuth(); return }
   const hash  = window.location.hash.slice(1) || 'dashboard'
   const [page, qs] = hash.split('?')
   const params = Object.fromEntries(new URLSearchParams(qs || ''))
@@ -2462,7 +2485,6 @@ async function syncSheetsRow(srId, status, resolvedAt, resolution) {
     body: JSON.stringify({ token:CFG.appsScriptToken, timestamp:Date.now().toString(), action:'update_sr_row', sr_number:sr.sr_number, status, resolved_at:resolvedAt, resolution, owner_name:sr.owner_name }),
   }).catch(e => console.error('Sheet sync error:', e))
 }
-}
 async function createDriveFolder(srId) {
   if (!CFG.appsScriptUrl) return
   const { data:sr } = await sb.from('sr_list').select('*').eq('id',srId).single()
@@ -2772,7 +2794,7 @@ async function pgActivities(pc, params = {}) {
     const filter = params.status ?? ''
     const q = params.q ?? ''
     const [{ data:acts, error:actsErr }, { data:users }] = await Promise.all([
-      sb.from('activities').select('*,owner:users(name)').order('created_at',{ascending:false}).limit(100),
+      sb.from('activities').select('*,owner:users!activities_owner_id_fkey(name)').order('created_at',{ascending:false}).limit(100),
       sb.from('users').select('*').eq('status','active').order('name'),
     ])
     if (actsErr) {
@@ -2784,9 +2806,10 @@ async function pgActivities(pc, params = {}) {
       throw new Error('Could not fetch activities - check database permissions')
     }
     console.log(`Fetched ${acts.length} activities from database`, acts.slice(0,3))
-    const filtered = (acts??[])
-      .filter(a => !filter || a.status===filter)
-      .filter(a => !q || a.title.toLowerCase().includes(q.toLowerCase()) || (a.account??'').toLowerCase().includes(q.toLowerCase()))
+    const query = q.toLowerCase()
+    const filtered = (acts ?? [])
+      .filter(a => !filter || a.status === filter)
+      .filter(a => !q || (a.title || '').toLowerCase().includes(query) || ((a.account || '').toLowerCase().includes(query)))
 
     pc.innerHTML = `
       <div class="page-header">
