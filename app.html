@@ -1376,7 +1376,7 @@ async function loadRuntimeConfig() {
 // ═══════════════════════════════════════════════════════════
 // INIT
 // ═══════════════════════════════════════════════════════════
-let sb = null, ME = null
+let sb = null, ME = null, unsubscribeAuth = null, routeCleanups = [], errorLog = []
 
 const ISSUE_TYPES = ['Hardware Failure','Software Issue','Network Problem','Access & Permissions','Email Issue','Printer Problem','Installation','Configuration','Performance Issue','Security Concern','Data Recovery','Training Request','Other']
 const PRIORITIES  = ['Low','Medium','High','Critical']
@@ -1410,7 +1410,7 @@ window.addEventListener('load', async () => {
     }
     if (sessionUser) { await loadProfile(sessionUser.id); await loadRuntimeConfig(); showApp(); routeFromHash() }
     else showAuth()
-    sb.auth.onAuthStateChange(async (event, session) => {
+    unsubscribeAuth = sb.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) { await loadProfile(session.user.id); showApp(); routeFromHash() }
       else if (event === 'SIGNED_OUT') { ME = null; showAuth() }
     })
@@ -1454,6 +1454,20 @@ async function auditLog(action, targetId, targetType, description, meta = {}) {
   } catch(e) { console.error('Audit log error:', e) }
 }
 
+function logAppError(msg, source = 'app') {
+  const entry = { time: new Date().toISOString(), msg, source }
+  errorLog.push(entry)
+  if (errorLog.length > 100) errorLog.shift()
+  return entry
+}
+
+const _origError = console.error
+console.error = function(...args) {
+  _origError.apply(console, args)
+  const msg = args.map(a => typeof a === 'string' ? a : JSON.stringify(a)).join(' ')
+  logAppError(msg, 'console.error')
+}
+
 // ═══════════════════════════════════════════════════════════
 // AUTH
 // ═══════════════════════════════════════════════════════════
@@ -1487,6 +1501,7 @@ document.addEventListener('keydown', e => {
 
 async function doLogout() {
   try {
+    if (unsubscribeAuth) { unsubscribeAuth(); unsubscribeAuth = null }
     sessionStorage.clear()
     Object.keys(localStorage).filter(k => k.startsWith('sb-') && k.includes('auth-token')).forEach(k => localStorage.removeItem(k))
     if (ME) await withTimeout(auditLog('LOGOUT', ME.id, 'user', 'User logged out', {}), 5000, 'Logout audit timeout').catch(()=>{})
@@ -1505,7 +1520,14 @@ function nav(page, params = {}) {
   window.location.hash = h
 }
 
+function registerRouteCleanup(fn) {
+  routeCleanups.push(fn)
+}
+
 function routeFromHash() {
+  routeCleanups.forEach(c => { try { c() } catch(e) { console.error('Route cleanup error:', e) } })
+  routeCleanups = []
+
   if (!ME) return
   const hash  = window.location.hash.slice(1) || 'dashboard'
   const [page, qs] = hash.split('?')
@@ -2126,7 +2148,12 @@ async function closeSR(srId) {
   const now = new Date().toISOString()
   await sb.from('sr').update({ status:'Closed', resolution:res||null, closed_at:now, closed_by:ME.id }).eq('id', srId)
   await auditLog('SR_CLOSE', srId, 'sr', 'Closed SR')
-  syncSheetsRow(srId, 'Closed', now, res)
+  try {
+    await syncSheetsRow(srId, 'Closed', now, res)
+  } catch(e) {
+    console.error('Sheet sync error:', e)
+    toast('Note: Google Sheets sync may have failed', 'warning')
+  }
   closeModalForce()
   toast('✓ SR closed successfully')
   nav('sr-detail', { id:srId })
@@ -2433,7 +2460,8 @@ async function syncSheetsRow(srId, status, resolvedAt, resolution) {
   fetch(CFG.appsScriptUrl, {
     method:'POST', headers:{'Content-Type':'application/json'},
     body: JSON.stringify({ token:CFG.appsScriptToken, timestamp:Date.now().toString(), action:'update_sr_row', sr_number:sr.sr_number, status, resolved_at:resolvedAt, resolution, owner_name:sr.owner_name }),
-  }).catch(()=>{})
+  }).catch(e => console.error('Sheet sync error:', e))
+}
 }
 async function createDriveFolder(srId) {
   if (!CFG.appsScriptUrl) return
@@ -2449,7 +2477,7 @@ async function createDriveFolder(srId) {
       await sb.from('sr').update({ drive_folder_url:d.folder_url, drive_folder_id:d.folder_id }).eq('id', srId)
       fetch(CFG.appsScriptUrl, { method:'POST', headers:{'Content-Type':'application/json'},
         body: JSON.stringify({ token:CFG.appsScriptToken, timestamp:_ts(), action:'append_sr_row', sr_number:sr.sr_number, status:sr.status, reported_at:sr.reported_at, account:sr.account, customer_name:sr.customer_name, customer_contact:sr.customer_contact, customer_email:sr.customer_email, issue_type:sr.issue_type, issue_description:sr.issue_description, owner_name:sr.owner_name, creator_name:sr.creator_name, priority:sr.priority, route_name:sr.route_name, folder_url:d.folder_url }),
-      }).catch(()=>{})
+      }).catch(e => console.error('Sheet row append error:', e))
     } else { console.warn('Drive folder creation failed:', d.error) }
   }).catch(e => console.error('Drive folder error:', e))
 }
@@ -2589,7 +2617,11 @@ async function submitNewSR() {
   }).select().single()
   if (error) { errEl.className='alert alert-error mb-4'; errEl.textContent=error.message; return }
   await auditLog('SR_CREATE', sr.id, 'sr', `Created SR ${sr.sr_number}`)
-  createDriveFolder(sr.id)
+  try {
+    await createDriveFolder(sr.id)
+  } catch(e) {
+    console.error('Drive folder creation error:', e)
+  }
   toast('✓ Service request created')
   nav('sr-detail', { id:sr.id })
 }
@@ -2739,10 +2771,19 @@ async function pgActivities(pc, params = {}) {
   try {
     const filter = params.status ?? ''
     const q = params.q ?? ''
-    const [{ data:acts }, { data:users }] = await Promise.all([
+    const [{ data:acts, error:actsErr }, { data:users }] = await Promise.all([
       sb.from('activities').select('*,owner:users(name)').order('created_at',{ascending:false}).limit(100),
       sb.from('users').select('*').eq('status','active').order('name'),
     ])
+    if (actsErr) {
+      console.error('Activities query error:', actsErr)
+      throw actsErr
+    }
+    if (!acts) {
+      console.warn('Activities query returned null (possible permissions issue)')
+      throw new Error('Could not fetch activities - check database permissions')
+    }
+    console.log(`Fetched ${acts.length} activities from database`, acts.slice(0,3))
     const filtered = (acts??[])
       .filter(a => !filter || a.status===filter)
       .filter(a => !q || a.title.toLowerCase().includes(q.toLowerCase()) || (a.account??'').toLowerCase().includes(q.toLowerCase()))
@@ -2751,7 +2792,7 @@ async function pgActivities(pc, params = {}) {
       <div class="page-header">
         <div>
           <div class="page-title">Activities</div>
-          <div class="page-subtitle">${filtered.length} records</div>
+          <div class="page-subtitle">${filtered.length} of ${acts.length} records</div>
         </div>
         <div class="page-header-actions">
           <button class="btn btn-primary" onclick="openNewActivity(${JSON.stringify(users??[]).replace(/"/g,'&quot;')})">
@@ -2797,7 +2838,7 @@ async function pgActivities(pc, params = {}) {
         </div>`}
       </div>`
   } catch(e) {
-    console.error('Activities error:', e)
+    console.error('Activities error:', e, e.stack)
     pc.innerHTML = pageError('Could not load activities', e.message, true, 'activities')
   }
 }
@@ -3514,18 +3555,17 @@ async function pgWhatsApp(pc) {
   fetchStatus()
   if (CFG.waBridgeUrl && !isLocalBridge(CFG.waBridgeUrl)) {
     pollInterval = setInterval(fetchStatus, 4000)
+    registerRouteCleanup(() => clearInterval(pollInterval))
   }
-  const cleanup = () => { clearInterval(pollInterval); window.removeEventListener('hashchange', cleanup) }
-  window.addEventListener('hashchange', cleanup)
 
   window.waConnect = async () => {
     if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl)) return
-    try { await fetch(`${CFG.waBridgeUrl}/connect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
+    try { await fetch(`${CFG.waBridgeUrl}/connect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch(e) { console.error('WhatsApp connect error:', e) }
     setTimeout(fetchStatus, 1500)
   }
   window.waDisconnect = async () => {
     if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl)) return
-    try { await fetch(`${CFG.waBridgeUrl}/disconnect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch {}
+    try { await fetch(`${CFG.waBridgeUrl}/disconnect`,{method:'POST',signal:AbortSignal.timeout(5000)}) } catch(e) { console.error('WhatsApp disconnect error:', e) }
     waStatus = { connected:false }; renderWA()
   }
   window.waSendDirect = async () => {
@@ -3771,6 +3811,7 @@ async function pgSettings(pc) {
         <button class="tab-btn"        id="tab-btn-general"  onclick="switchSettingsTab('general')">General</button>
         <button class="tab-btn"        id="tab-btn-drive"    onclick="switchSettingsTab('drive')">Google Drive</button>
         <button class="tab-btn"        id="tab-btn-wa"       onclick="switchSettingsTab('wa')">WhatsApp</button>
+        <button class="tab-btn"        id="tab-btn-debug"    onclick="switchSettingsTab('debug')">Debug Log</button>
       </div>
       <div id="settings-panel"></div>`
 
@@ -3871,6 +3912,28 @@ async function pgSettings(pc) {
         <div class="flex items-center gap-3 mt-4">
           <button class="btn btn-primary" onclick="window.saveWA()">Save WhatsApp Settings</button>
           <div id="wa-msg" style="font-size:.8rem"></div>
+        </div>
+      </div>`,
+
+      debug: `<div class="card" style="max-width:720px">
+        <div class="section-title mb-2">Error Log</div>
+        <p style="color:var(--text-2);font-size:.8rem;margin-bottom:14px">Recent system errors and debug information</p>
+        <div style="border:1px solid var(--border);border-radius:var(--r);background:var(--bg-elevated);max-height:400px;overflow-y:auto;font-family:var(--mono);font-size:.7rem">
+          ${errorLog.length === 0 ? `<div style="padding:16px;color:var(--text-3)">No errors logged</div>` : `
+            <table style="width:100%;border-collapse:collapse">
+              <tbody>
+              ${errorLog.map((e, i) => `<tr style="border-bottom:1px solid var(--border)">
+                <td style="padding:8px 12px;color:var(--text-2)">${e.time}</td>
+                <td style="padding:8px 12px;color:var(--text-2);width:80px">[${e.source}]</td>
+                <td style="padding:8px 12px;color:var(--text-1);word-break:break-word">${escHtml(e.msg.substring(0,200))}</td>
+              </tr>`).join('')}
+              </tbody>
+            </table>
+          `}
+        </div>
+        <div class="flex items-center gap-3 mt-4">
+          <button class="btn btn-secondary btn-sm" onclick="errorLog=[];document.location.reload()">Clear Log</button>
+          <button class="btn btn-ghost btn-sm" onclick="navigator.clipboard.writeText(JSON.stringify(errorLog,null,2)).then(()=>alert('Copied to clipboard'))">Export as JSON</button>
         </div>
       </div>`,
     }
