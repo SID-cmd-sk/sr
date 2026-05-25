@@ -1,3 +1,5 @@
 .env
-/setup/wa-service/node_modules
+/setup/wa-service/wa_auth
+/node_modules
+/test-results
 /setup/wa-service
