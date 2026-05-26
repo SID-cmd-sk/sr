@@ -39,3 +39,5 @@ reports/
 # OS files
 .DS_Store
 Thumbs.db
+/_archive
+*.zip
