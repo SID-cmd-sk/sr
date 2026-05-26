@@ -406,6 +406,23 @@ LEFT JOIN public.users o ON o.id = s.owner_id
 LEFT JOIN public.users c ON c.id = s.creator_id
 LEFT JOIN public.routes r ON r.id = s.route_id;
 
+-- ACTIVITIES LIST VIEW  (for sheets sync)
+-- ────────────────────────────────────────────────────────────
+
+CREATE OR REPLACE VIEW public.activities_list AS
+SELECT
+  a.id, a.activity_no, a.title, a.type, a.type AS activity_type,
+  a.status, a.notes, a.notes AS description,
+  a.linked_sr, a.account, a.contact_name, a.contact_phone,
+  a.owner_id, a.creator_id,
+  a.drive_folder_url,
+  a.due_date, a.closed_at, a.created_at, a.updated_at,
+  o.name AS owner_name, o.email AS owner_email,
+  c.name AS creator_name, c.name AS performed_by_name
+FROM public.activities a
+LEFT JOIN public.users o ON o.id = a.owner_id
+LEFT JOIN public.users c ON c.id = a.creator_id;
+
 -- ────────────────────────────────────────────────────────────
 -- AUTO-CREATE USER PROFILE ON AUTH SIGNUP / INVITE
 -- ────────────────────────────────────────────────────────────

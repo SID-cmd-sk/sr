@@ -93,7 +93,7 @@ export async function syncActivityRow(activityId, srId) {
     return
   }
   try {
-    await _postToAppsScript({ action:'append_activity_row', sr_id:srId, activity_type:act.activity_type, description:act.description, performed_by:act.performed_by_name, performed_at:act.created_at })
+    await _postToAppsScript({ action:'append_activity_row', title:act.title, type:act.type, status:act.status, owner_name:act.owner_name, account:act.account, contact_name:act.contact_name, linked_sr:srId, due_date:act.due_date, created_at:act.created_at })
   } catch(e) {
     logAppError(`Activity sync error: ${e.message}`)
     _enqueue('syncActivityRow', { activityId, srId })

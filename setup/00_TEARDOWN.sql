@@ -11,6 +11,7 @@ DROP FUNCTION IF EXISTS public.handle_new_user CASCADE;
 -- ── 2. Drop all views ────────────────────────────────────────
 DROP VIEW IF EXISTS public.sr_list         CASCADE;
 DROP VIEW IF EXISTS public.dashboard_stats CASCADE;
+DROP VIEW IF EXISTS public.activities_list CASCADE;
 
 -- ── 3. Drop all tables (CASCADE cleans FKs automatically) ───
 DROP TABLE IF EXISTS public.audit_log          CASCADE;
