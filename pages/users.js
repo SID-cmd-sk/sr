@@ -83,7 +83,7 @@ window.openInviteUser = () => {
       </button>
     </div>
     <div class="modal-body">
-      <div class="alert alert-info">User will receive a password reset email from Supabase to set their password.</div>
+      <div class="alert alert-info">User will receive a confirmation email from Supabase to activate their account.</div>
       <div class="form-group">
         <label class="form-label req">Email Address</label>
         <input class="form-input" id="inv-email" type="email" placeholder="colleague@sks3d.com"/>
@@ -112,8 +112,24 @@ window.submitInvite = async () => {
   const name = document.getElementById('inv-name')?.value?.trim()
   const role = document.getElementById('inv-role')?.value
   if (!email || !name) { window.toast('Email and name are required', 'error'); return }
-  await sb.from('users').upsert({ email, name, role, status: 'active' }, { onConflict: 'email' })
-  window.closeModalForce()
-  window.toast('Profile created. Invite user via Supabase Dashboard → Auth → Invite user.', 'info')
-  navigate('users')
+
+  const btn = document.querySelector('.modal-footer .btn-primary')
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Creating…' }
+
+  try {
+    const { data, error } = await sb.auth.signUp({
+      email,
+      password: 'Temp@' + Date.now().toString(36).slice(-6),
+      options: { data: { name, role } },
+    })
+    if (error) throw error
+    if (!data?.user?.id) throw new Error('User creation failed — check if signups are enabled in Supabase Auth settings')
+
+    window.closeModalForce()
+    window.toast(data.user?.email_confirmed_at ? '✓ User created' : '✓ Invitation sent — user will receive a confirmation email', 'success')
+    navigate('users')
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Create Profile' }
+    window.toast('✗ ' + e.message, 'error')
+  }
 }
