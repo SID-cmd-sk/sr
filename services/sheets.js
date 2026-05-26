@@ -37,12 +37,10 @@ function _validateSrData(sr) {
 
 async function _postToAppsScript(body) {
   if (!CFG.appsScriptUrl) throw new Error('Apps Script URL not configured')
-  const payload = JSON.stringify({ token: CFG.appsScriptToken, timestamp: Date.now().toString(), ...body })
-  const url = CFG.appsScriptUrl + (CFG.appsScriptUrl.includes('?') ? '&' : '?') + '_t=' + Date.now()
-  const res = await fetch(url, {
+  const res = await fetch(CFG.appsScriptUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: 'payload=' + encodeURIComponent(payload),
+    headers: { 'Content-Type': 'text/plain' },
+    body: JSON.stringify({ token: CFG.appsScriptToken, timestamp: Date.now().toString(), ...body }),
   })
   const json = await res.json().catch(() => ({}))
   if (!json.ok) throw new Error(json.error || `Apps Script error ${res.status}`)

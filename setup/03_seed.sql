@@ -18,7 +18,7 @@ INSERT INTO public.settings (key, value) VALUES
   "spreadsheet_id":      "10k6weyGqYVEsUNf4DUe1fFGrBaB2sfOBIskhn2pFWGQ",
   "sr_sheet_name":       "SR Register",
   "activity_sheet_name": "Activity Log",
-  "apps_script_url":     "https://script.google.com/macros/s/AKfycby6XJHI4jixfs97pM1o72-AuNErw9_vDmOk_te0sPW-m0s5QtwvOJb2E4GMhE.../exec",
+  "apps_script_url":     "https://script.google.com/macros/s/AKfycbx76Nq49beMqcmVu21BV4sa0v4w7akkARl815goFcc3QCVYKKM_-ORxD0GzZoRa6zJ8dA/exec",
   "apps_script_token":   "SR_PLATFORM_2026_SECRET"
 }'),
 
