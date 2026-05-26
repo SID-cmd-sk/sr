@@ -105,7 +105,7 @@ async function render(container) {
           </div>
         </div>
         <div class="flex gap-3">
-          <button class="btn btn-primary btn-lg" onclick="submitNewSR()">
+          <button class="btn btn-primary btn-lg" id="n-submit" onclick="submitNewSR()">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
             Create Service Request
           </button>
@@ -125,12 +125,15 @@ async function submitNewSR() {
   const title = document.getElementById('n-title')?.value?.trim()
   const desc  = document.getElementById('n-desc')?.value?.trim()
   const errEl = document.getElementById('sr-new-error')
+  const btn   = document.getElementById('n-submit')
   if (!title || !desc) {
     errEl.className = 'alert alert-error mb-4'
     errEl.textContent = 'Title and description are required.'
     return
   }
   errEl.className = 'hidden'
+  btn.disabled = true
+  btn.innerHTML = '<span class="btn-spinner"></span> Creating…'
   const canChooseOwner = ['Admin','Manager'].includes(me?.role)
   const { data:sr, error } = await sb.from('sr').insert({
     title, issue_description:desc,
@@ -145,7 +148,13 @@ async function submitNewSR() {
     route_id:         document.getElementById('n-route')?.value||null,
     status:           'Open',
   }).select().single()
-  if (error) { errEl.className='alert alert-error mb-4'; errEl.textContent=error.message; return }
+  if (error) {
+    btn.disabled = false
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>\n            Create Service Request'
+    errEl.className='alert alert-error mb-4'
+    errEl.textContent=error.message
+    return
+  }
   await auditLog('SR_CREATE', sr.id, 'sr', `Created SR ${sr.sr_number}`)
   try {
     await createDriveFolder(sr.id)

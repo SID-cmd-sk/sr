@@ -163,7 +163,7 @@ window.openNewActivity = (users) => {
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
-      <button class="btn btn-primary" onclick="submitNewActivity()">Create Activity</button>
+      <button class="btn btn-primary" id="na-submit" onclick="submitNewActivity()">Create Activity</button>
     </div>
   `)
 }
@@ -173,6 +173,9 @@ window.submitNewActivity = async () => {
   const me = appState.get('user')
   const title = document.getElementById('na-title')?.value?.trim()
   if (!title) { window.toast('Title is required', 'error'); return }
+  const btn = document.getElementById('na-submit')
+  btn.disabled = true
+  btn.innerHTML = '<span class="btn-spinner"></span> Creating…'
   const { error } = await sb.from('activities').insert({
     title,
     type: document.getElementById('na-type')?.value,
@@ -185,7 +188,12 @@ window.submitNewActivity = async () => {
     creator_id: me.id,
     status: 'Open',
   })
-  if (error) { window.toast('Error: ' + error.message, 'error'); return }
+  if (error) {
+    btn.disabled = false
+    btn.innerHTML = 'Create Activity'
+    window.toast('Error: ' + error.message, 'error')
+    return
+  }
   window.closeModalForce()
   window.toast('✓ Activity created')
   navigate('activities')

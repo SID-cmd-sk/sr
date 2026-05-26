@@ -36,6 +36,15 @@ reports/
 /setup/wa-service/wa_auth
 /setup/wa-service
 
+# Local server
+/local/
+
+# Duplicate setup
+/setup/setup/
+
+# Credential log
+/detailed log.txt
+
 # OS files
 .DS_Store
 Thumbs.db

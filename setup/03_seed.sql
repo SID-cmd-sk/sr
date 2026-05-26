@@ -83,9 +83,27 @@ Regards,
  'Hello {{customer_name}}, your service request *{{sr_number}}* status is now: *{{status}}*. For queries, reply to this message. — {{company_name}}',
  true),
 
-('WA Closed', 'whatsapp',
- NULL,
- 'Hello {{customer_name}}, your service request *{{sr_number}}* has been *resolved*. Thank you for your patience. — {{company_name}}',
+ ('WA Closed', 'whatsapp',
+  NULL,
+  'Hello {{customer_name}}, your service request *{{sr_number}}* has been *resolved*. Thank you for your patience. — {{company_name}}',
+  true),
+
+('Welcome User', 'email',
+ 'Welcome to {{company_name}} — Your Account Credentials',
+ 'Hello {{user_name}},
+
+Your account has been created on the SR Platform.
+
+Here are your login credentials:
+  Email    : {{user_email}}
+  Password : {{user_password}}
+
+Login at: https://sid-cmd-sk.github.io/sr/app.html
+
+For any questions or to change your password, please contact {{admin_name}}.
+
+Best regards,
+{{company_name}}',
  true)
 
 ON CONFLICT DO NOTHING;
