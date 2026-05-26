@@ -14,6 +14,7 @@ const routeMap = {
   whatsapp: '/app/whatsapp',
   users: '/app/users',
   reports: '/app/reports',
+  'eod-report': '/app/eod-report',
   settings: '/app/settings',
   create: '/app/create',
 }
@@ -30,6 +31,7 @@ const pageTitles = {
   whatsapp: 'WhatsApp',
   users: 'Users',
   reports: 'Reports',
+  'eod-report': 'EOD Report',
   settings: 'Settings',
   create: 'Create',
 }
