@@ -107,16 +107,7 @@ window.openInviteUser = () => {
           </select>
         </div>
       </div>
-      <div class="form-row" style="border-top:1px solid var(--border-md);padding-top:14px;margin-top:6px">
-        <div class="form-group">
-          <label class="form-label">SMTP Email</label>
-          <input class="form-input" id="inv-smtp-email" type="email" placeholder="smtp user email"/>
-        </div>
-        <div class="form-group">
-          <label class="form-label">SMTP Password</label>
-          <input class="form-input" id="inv-smtp-pw" type="password" placeholder="SMTP password"/>
-        </div>
-      </div>
+
     </div>
     <div class="modal-footer">
       <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
@@ -170,8 +161,6 @@ window.submitInvite = async () => {
   const name = document.getElementById('inv-name')?.value?.trim()
   const pw = document.getElementById('inv-pw')?.value
   const role = document.getElementById('inv-role')?.value
-  const smtpEmail = document.getElementById('inv-smtp-email')?.value?.trim() || null
-  const smtpPw = document.getElementById('inv-smtp-pw')?.value || null
   if (!email || !name) { window.toast('Email and name are required', 'error'); return }
   if (!pw || pw.length < 6) { window.toast('Password must be at least 6 characters', 'error'); return }
 
@@ -187,13 +176,6 @@ window.submitInvite = async () => {
     })
     if (error) throw error
     if (!data?.user?.id) throw new Error('User creation failed — check if signups are enabled in Supabase Auth settings')
-
-    if (smtpEmail || smtpPw) {
-      await sb.from('users').update({
-        ...(smtpEmail && { smtp_email: smtpEmail }),
-        ...(smtpPw && { smtp_password: smtpPw }),
-      }).eq('id', data.user.id)
-    }
 
     const emailed = await sendWelcomeEmail(email, name, pw)
     window.closeModalForce()
