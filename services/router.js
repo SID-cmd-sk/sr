@@ -38,6 +38,12 @@ let currentPage = 'dashboard'
 let currentParams = {}
 let routeListeners = []
 
+function appBase() {
+  const p = window.location.pathname
+  const idx = p.search(/\/app(\.html|\/)/)
+  return idx === -1 ? '' : p.substring(0, idx)
+}
+
 function runCleanups() {
   const cleanups = appState.get('routeCleanups') || []
   cleanups.forEach(fn => { try { fn() } catch {} })
@@ -75,7 +81,7 @@ async function loadPageModule(page, params) {
 export function navigate(page, params = {}) {
   const path = routeMap[page] || '/app/dashboard'
   const qs = Object.keys(params).length ? '?' + new URLSearchParams(params).toString() : ''
-  history.pushState({ page, params }, '', path + qs)
+  history.pushState({ page, params }, '', appBase() + path + qs)
   resolveRoute(page, params)
 }
 
@@ -93,7 +99,9 @@ export function getPageTitle(page) {
 }
 
 export function initRouter() {
-  const path = window.location.pathname
+  const base = appBase()
+  let path = window.location.pathname
+  if (base && path.startsWith(base)) path = path.slice(base.length) || '/'
 
   let page = 'dashboard'
   for (const [p, route] of Object.entries(routeMap)) {
@@ -105,7 +113,7 @@ export function initRouter() {
 
   const searchParams = Object.fromEntries(new URLSearchParams(window.location.search))
   const qs = Object.keys(searchParams).length ? '?' + new URLSearchParams(searchParams).toString() : ''
-  history.replaceState({ page, params: searchParams }, '', routeMap[page] + qs)
+  history.replaceState({ page, params: searchParams }, '', base + (routeMap[page] || '/app/dashboard') + qs)
 
   window.addEventListener('popstate', e => {
     const state = e.state || { page: 'dashboard', params: {} }
