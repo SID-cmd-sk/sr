@@ -49,9 +49,10 @@ export default {
     try {
       const range = todayRange()
 
-      const [{ data: acts }, { data: srs }] = await Promise.all([
+      const [{ data: acts }, { data: srs }, { data: waSettings }] = await Promise.all([
         sb.from('activities').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
         sb.from('sr').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
+        sb.from('settings').select('value').eq('key', 'whatsapp').single(),
       ])
 
       const items = []
@@ -64,7 +65,8 @@ export default {
       items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
 
       const report = buildReport(items)
-      const totalWA = 0
+      const groupId = waSettings?.value?.eod_group_id || ''
+      const groupName = waSettings?.value?.eod_group_name || ''
 
       container.innerHTML = `
         <div class="page-header">
@@ -73,9 +75,9 @@ export default {
             <div class="page-subtitle">${fmtDate(new Date())} · ${items.length} tasks today</div>
           </div>
           <div class="page-header-actions">
-            <button class="btn btn-primary" id="eod-send-btn" onclick="sendEODReport()" ${items.length === 0 ? 'disabled' : ''}>
+            <button class="btn btn-primary" id="eod-send-btn" onclick="sendEODReport()" ${items.length === 0 || !groupId ? 'disabled' : ''}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-              Send to All
+              Send to Group
             </button>
             <button class="btn btn-ghost" onclick="navigate('reports')">Back</button>
           </div>
@@ -90,23 +92,18 @@ export default {
         </div>
         <div class="card" style="margin-top:12px">
           <div class="card-header">
-            <div class="card-title">Recipients</div>
+            <div class="card-title">Delivery</div>
           </div>
           <div class="card-body" id="eod-recipients">
-            <p class="text-2" style="font-size:.85rem">Loading team members with phone numbers...</p>
+            ${groupId ? `<p style="font-size:.85rem;color:var(--text-2)">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:4px"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              Sent to WhatsApp group: <strong>${escHtml(groupName)}</strong>
+            </p>
+            <p style="font-size:.75rem;color:var(--text-3);margin-top:4px">Change group in <a href="#" onclick="navigate('whatsapp');return false" style="color:var(--accent-lg)">WhatsApp settings</a></p>` :
+            `<p style="font-size:.85rem;color:var(--orange)">⚠ No EOD group selected.</p>
+            <p style="font-size:.75rem;color:var(--text-3);margin-top:4px">Go to <a href="#" onclick="navigate('whatsapp');return false" style="color:var(--accent-lg)">WhatsApp settings</a> and select a group for EOD reports.</p>`}
           </div>
         </div>`
-
-      const { data: users } = await sb.from('users').select('name,email,phone,role').not('phone', 'is', null).neq('phone', '').order('name')
-      const rcpt = document.getElementById('eod-recipients')
-      if (!users || users.length === 0) {
-        rcpt.innerHTML = '<p class="text-2" style="font-size:.85rem">No team members have registered phone numbers.</p>'
-      } else {
-        rcpt.innerHTML = `<p style="font-size:.85rem;margin-bottom:8px;color:var(--text-2)">${users.length} team member(s) will receive this report</p>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            ${users.map(u => `<span style="font-size:.78rem;padding:4px 10px;background:var(--bg-subtle);border-radius:20px;border:1px solid var(--border)">${escHtml(u.name || u.email)} ${u.phone ? '<span style="color:var(--text-3)">· ' + escHtml(u.phone) + '</span>' : ''}</span>`).join('')}
-          </div>`
-      }
     } catch (e) {
       container.innerHTML = pageError('Could not load EOD data', e.message, true, 'eod-report')
     }
@@ -123,10 +120,14 @@ window.sendEODReport = async () => {
     const sb = getSupabase()
     const range = todayRange()
 
-    const [{ data: acts }, { data: srs }] = await Promise.all([
+    const [{ data: acts }, { data: srs }, { data: waSettings }] = await Promise.all([
       sb.from('activities').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
       sb.from('sr').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
+      sb.from('settings').select('value').eq('key', 'whatsapp').single(),
     ])
+
+    const groupId = waSettings?.value?.eod_group_id
+    if (!groupId) throw new Error('No EOD group configured. Select one in WhatsApp settings.')
 
     const items = []
     ;(acts || []).forEach(a => items.push({ type: 'activity', title: a.title || '', subtype: a.type || '', account: a.contact_name || a.account || '', status: a.status || 'Open', raw: a }))
@@ -136,34 +137,25 @@ window.sendEODReport = async () => {
 
     if (!CFG.waBridgeUrl) throw new Error('WhatsApp bridge URL not configured')
 
-    const { data: users } = await sb.from('users').select('name,email,phone').not('phone', 'is', null).neq('phone', '').order('name')
-    if (!users || users.length === 0) throw new Error('No recipients with phone numbers found')
+    const r = await fetch(`${CFG.waBridgeUrl}/send-group`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ group_id: groupId, message: report }),
+      signal: AbortSignal.timeout(20000),
+    })
+    const d = await r.json()
 
-    let sent = 0, failed = 0
-    for (const u of users) {
-      try {
-        const r = await fetch(`${CFG.waBridgeUrl}/send`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ phone: u.phone, message: report }),
-          signal: AbortSignal.timeout(15000),
-        })
-        const d = await r.json()
-        if (d.ok) sent++; else failed++
-      } catch { failed++ }
-    }
-
-    btn.innerHTML = `Sent to ${sent} · ${failed} failed`
-    if (failed === 0) {
+    if (d.ok) {
+      btn.innerHTML = '✓ Sent'
       btn.className = 'btn btn-success'
-      window.toast(`✓ EOD report sent to ${sent} team member(s)`)
+      window.toast('✓ EOD report sent to WhatsApp group')
     } else {
-      window.toast(`Sent to ${sent}, ${failed} failed`, 'error')
+      throw new Error(d.error || 'Send failed')
     }
-    setTimeout(() => { btn.disabled = false; btn.innerHTML = 'Send to All'; btn.className = 'btn btn-primary' }, 3000)
+    setTimeout(() => { btn.disabled = false; btn.innerHTML = 'Send to Group'; btn.className = 'btn btn-primary' }, 3000)
   } catch (e) {
     btn.disabled = false
-    btn.innerHTML = 'Send to All'
+    btn.innerHTML = 'Send to Group'
     window.toast('✗ ' + e.message, 'error')
   }
 }

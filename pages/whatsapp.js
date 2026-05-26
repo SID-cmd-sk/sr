@@ -13,9 +13,30 @@ export default {
   async render(container, params) {
     const sb = getSupabase()
     const me = appState.get('user')
-
     let waStatus = { connected: false }
     let pollInterval = null
+    let groupList = []
+    let savedGroupId = null
+    let savedGroupName = ''
+
+    async function loadSavedGroup() {
+      try {
+        const { data } = await sb.from('settings').select('value').eq('key', 'whatsapp').single()
+        if (data?.value?.eod_group_id) {
+          savedGroupId = data.value.eod_group_id
+          savedGroupName = data.value.eod_group_name || savedGroupId
+        }
+      } catch {}
+    }
+
+    async function fetchGroups() {
+      if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl)) return
+      try {
+        const r = await fetch(`${CFG.waBridgeUrl}/groups`, { signal: AbortSignal.timeout(8000) })
+        const d = await r.json()
+        if (d.ok && Array.isArray(d.groups)) groupList = d.groups
+      } catch {}
+    }
 
     async function fetchStatus() {
       if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl)) {
@@ -28,6 +49,10 @@ export default {
       } catch {
         waStatus = { connected: false, error: 'Bridge offline' }
       }
+      if (waStatus.connected) {
+        await loadSavedGroup()
+        await fetchGroups()
+      }
       renderWA()
     }
 
@@ -35,6 +60,11 @@ export default {
       const conn = waStatus.connected
       const waContent = document.getElementById('wa-content')
       if (!waContent) return
+
+      const groupOpts = groupList.map(g =>
+        `<option value="${escHtml(g.id)}" ${g.id === savedGroupId ? 'selected' : ''}>${escHtml(g.name)} ${g.members ? '(' + g.members + ')' : ''}</option>`
+      ).join('')
+
       waContent.innerHTML = `
         <div class="flex items-center gap-3 mb-5">
           <div style="width:10px;height:10px;border-radius:50%;background:${conn ? 'var(--green)' : 'var(--text-3)'};box-shadow:${conn ? '0 0 8px var(--green)' : 'none'};flex-shrink:0"></div>
@@ -50,7 +80,8 @@ export default {
           <p style="color:var(--text-2);font-size:.83rem;margin-bottom:16px">Scan this QR with WhatsApp on your phone</p>
           <img src="${escHtml(waStatus.qr)}" style="max-width:240px;border-radius:var(--r);border:3px solid white"/>
         </div>` : ''}
-        ${conn ? `<div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+        ${conn ? `
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
           <div class="section-title mb-4">Send Test Message</div>
           <div style="display:flex;flex-direction:column;gap:12px;max-width:480px">
             <div class="form-group">
@@ -67,7 +98,26 @@ export default {
             </button>
             <div id="wa-send-status" style="font-size:.8rem"></div>
           </div>
-        </div>` : `<div class="alert alert-info" style="margin-top:14px">
+        </div>
+        <div style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border)">
+          <div class="section-title mb-4">EOD Report Group</div>
+          <p style="font-size:.8rem;color:var(--text-2);margin-bottom:12px">Select a WhatsApp group where daily EOD reports will be sent.</p>
+          <div style="display:flex;flex-direction:column;gap:12px;max-width:480px">
+            <div class="form-group">
+              <label class="form-label">Group</label>
+              <select class="form-select" id="wa-eod-group" onchange="window.waSaveGroup()">
+                <option value="">— Select a group —</option>
+                ${groupOpts}
+              </select>
+              ${groupList.length === 0 ? '<p style="font-size:.75rem;color:var(--text-3);margin-top:4px">No groups found. Make sure the WhatsApp number is added to at least one group.</p>' : ''}
+            </div>
+            ${savedGroupId ? `<div style="font-size:.78rem;color:var(--green)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" style="vertical-align:middle;margin-right:4px"><polyline points="20 6 9 17 4 12"/></svg>
+              EOD will be sent to: <strong>${escHtml(savedGroupName)}</strong>
+            </div>` : '<div style="font-size:.78rem;color:var(--text-3)">No group selected — EOD report will not be sent.</div>'}
+          </div>
+        </div>
+        ` : `<div class="alert alert-info" style="margin-top:14px">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
           <div>Start the WhatsApp bridge service first: <code style="font-family:var(--mono);background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">cd wa-service && node bridge.js</code></div>
         </div>`}`
@@ -77,10 +127,10 @@ export default {
       <div class="page-header">
         <div>
           <div class="page-title">WhatsApp</div>
-          <div class="page-subtitle">QR session for SR notifications and direct messaging</div>
+          <div class="page-subtitle">QR session for SR notifications, EOD reports, and direct messaging</div>
         </div>
       </div>
-      <div class="card" style="max-width:600px" id="wa-content">
+      <div class="card" style="max-width:640px" id="wa-content">
         <div style="color:var(--text-3);font-size:.83rem">Checking connection…</div>
       </div>`
 
@@ -115,6 +165,22 @@ export default {
         if (el) { el.textContent = d.ok ? '✓ Sent!' : '✗ ' + d.error; el.style.color = d.ok ? 'var(--green)' : 'var(--red)' }
       } catch {
         if (el) { el.textContent = '✗ Bridge offline'; el.style.color = 'var(--red)' }
+      }
+    }
+    window.waSaveGroup = async () => {
+      const sel = document.getElementById('wa-eod-group')
+      if (!sel) return
+      const gid = sel.value
+      const gname = gid ? (groupList.find(g => g.id === gid)?.name || gid) : ''
+      try {
+        const { data: existing } = await sb.from('settings').select('value').eq('key', 'whatsapp').single()
+        const value = { ...(existing?.value || {}), bridge_url: CFG.waBridgeUrl, eod_group_id: gid, eod_group_name: gname }
+        await sb.from('settings').upsert({ key: 'whatsapp', value }, { onConflict: 'key' })
+        savedGroupId = gid
+        savedGroupName = gname
+        window.toast(gid ? `✓ EOD group set to: ${gname}` : '✓ EOD group cleared')
+      } catch (e) {
+        window.toast('✗ Failed to save: ' + e.message, 'error')
       }
     }
   }

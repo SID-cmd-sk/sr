@@ -15,6 +15,7 @@ const routeMap = {
   users: '/app/users',
   reports: '/app/reports',
   'eod-report': '/app/eod-report',
+  config: '/app/config',
   settings: '/app/settings',
   create: '/app/create',
 }
@@ -32,6 +33,7 @@ const pageTitles = {
   users: 'Users',
   reports: 'Reports',
   'eod-report': 'EOD Report',
+  config: 'Configuration',
   settings: 'Settings',
   create: 'Create',
 }

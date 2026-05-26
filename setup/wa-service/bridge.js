@@ -194,6 +194,41 @@ app.post('/send', async (req, res) => {
   }
 })
 
+app.get('/groups', async (req, res) => {
+  if (!isConnected || !sock)
+    return res.json({ ok: false, error: 'WhatsApp not connected' })
+  try {
+    const groups = await sock.groupFetchAllParticipating()
+    const list = Object.entries(groups).map(([jid, g]) => ({
+      id: jid,
+      name: g.subject || 'Unnamed',
+      members: g.participants?.length || 0,
+    }))
+    list.sort((a, b) => a.name.localeCompare(b.name))
+    res.json({ ok: true, groups: list })
+  } catch (err) {
+    res.json({ ok: false, error: err.message })
+  }
+})
+
+app.post('/send-group', async (req, res) => {
+  if (!isConnected || !sock)
+    return res.json({ ok: false, error: 'WhatsApp not connected' })
+  const { group_id, message } = req.body
+  if (!group_id || !message)
+    return res.json({ ok: false, error: 'group_id and message are required' })
+  const messageStr = String(message).trim()
+  if (messageStr.length === 0 || messageStr.length > 4096)
+    return res.json({ ok: false, error: 'Message must be between 1 and 4096 characters' })
+  try {
+    await sock.sendMessage(group_id, { text: messageStr })
+    console.log(`[WA] Sent to group ${group_id}`)
+    res.json({ ok: true })
+  } catch (err) {
+    res.json({ ok: false, error: err.message })
+  }
+})
+
 app.post('/send-template', async (req, res) => {
   if (!isConnected || !sock)
     return res.json({ ok: false, error: 'WhatsApp not connected' })
