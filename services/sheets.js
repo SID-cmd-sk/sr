@@ -39,7 +39,7 @@ async function _postToAppsScript(body) {
   if (!CFG.appsScriptUrl) throw new Error('Apps Script URL not configured')
   const res = await fetch(CFG.appsScriptUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'text/plain' },
     body: JSON.stringify({ token: CFG.appsScriptToken, timestamp: Date.now().toString(), ...body }),
   })
   const json = await res.json().catch(() => ({}))
