@@ -68,7 +68,16 @@ export default {
             <div class="card-title">EOD Report Template</div>
           </div>
           <div class="card-body">
-            <p style="font-size:.8rem;color:var(--text-2);margin-bottom:8px">Use placeholders: <code>{header}</code> <code>{items}</code> <code>{summary}</code> <code>{date}</code> <code>{total}</code> <code>{done}</code> <code>{pending}</code></p>
+            <p style="font-size:.8rem;color:var(--text-2);margin-bottom:8px">
+              Placeholders:
+              <code>{header}</code> <code>{items}</code> <code>{items_activities}</code> <code>{items_srs}</code>
+              <code>{summary}</code> <code>{date}</code> <code>{time}</code> <code>{weekday}</code>
+              <code>{total}</code> <code>{done}</code> <code>{pending}</code>
+              <code>{activity_count}</code> <code>{sr_count}</code>
+              <code>{activities_done}</code> <code>{activities_pending}</code>
+              <code>{srs_done}</code> <code>{srs_pending}</code>
+              <code>{separator}</code>
+            </p>
             <textarea class="form-textarea config-field" data-key="eod_template" rows="6" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_template || EOD_DEFAULT_TEMPLATE)}</textarea>
           </div>
         </div>`

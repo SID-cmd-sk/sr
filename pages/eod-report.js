@@ -16,30 +16,46 @@ function todayRange() {
   return { start: s.toISOString(), end: e.toISOString() }
 }
 
-function buildItemLines(items) {
-  let pending = 0
-  const lines = items.map((item, i) => {
-    if (item.type === 'activity') {
-      if (item.status !== 'Done') pending++
-      return `${i + 1}. ${item.title} (${item.subtype || 'Activity'})`
-    }
-    if (item.status !== 'Closed') pending++
-    return `${i + 1}. ${item.title} — ${item.sr_num} (${item.issue_type || 'SR'})`
-  })
-  return { lines, pending, total: items.length, done: items.length - pending }
-}
-
 function buildReport(items, template) {
-  const { lines, pending, total, done } = buildItemLines(items)
-  const date = fmtDate(new Date())
+  const acts = items.filter(i => i.type === 'activity')
+  const srs  = items.filter(i => i.type === 'sr')
+  const actPending = acts.filter(i => i.status !== 'Done').length
+  const srPending  = srs.filter(i  => i.status !== 'Closed').length
+  const total      = items.length
+  const done       = total - (actPending + srPending)
+  const pending    = actPending + srPending
+
+  const makeLines = (list, typeField) =>
+    list.map((item, i) => {
+      const label = item.type === 'activity' ? (item.subtype || 'Activity') : (item.issue_type || 'SR')
+      return `${i + 1}. ${item.title}${item.sr_num ? ' — ' + item.sr_num : ''} (${label})`
+    })
+
+  const now = new Date()
+  const date = fmtDate(now)
+  const weekday = now.toLocaleDateString('en-IN', { weekday: 'long' })
+  const time = now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true })
+  const separator = '──────────'
+
   const vars = {
-    header: `📋 *${date}*`,
-    items:  lines.join('\n'),
-    summary: `*${total} tasks* — ${done} done, ${pending} pending`,
+    header:             `📋 *${date}*`,
+    items:              makeLines(items).join('\n'),
+    items_activities:   makeLines(acts).join('\n'),
+    items_srs:          makeLines(srs).join('\n'),
+    summary:            `*${total} tasks* — ${done} done, ${pending} pending`,
     date,
-    total: String(total),
-    done: String(done),
-    pending: String(pending),
+    time,
+    weekday,
+    separator,
+    total:              String(total),
+    done:               String(done),
+    pending:            String(pending),
+    activity_count:     String(acts.length),
+    sr_count:           String(srs.length),
+    activities_done:    String(acts.length - actPending),
+    activities_pending: String(actPending),
+    srs_done:           String(srs.length - srPending),
+    srs_pending:        String(srPending),
   }
   return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`)
 }
