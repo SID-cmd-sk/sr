@@ -35,6 +35,7 @@ function buildReport(items, template, actFmt, srFmt) {
       if (k === 'type') return item.subtype || 'Activity'
       if (k === 'sr_num') return item.sr_num || ''
       if (k === 'issue_type') return item.issue_type || 'SR'
+      if (k === 'description') return item.raw?.issue_description || ''
       if (k === 'created_at') return item.raw?.created_at || ''
       return `{${k}}`
     })
@@ -99,10 +100,10 @@ export default {
       items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
 
       const cfg = appConfig?.value || {}
-      const defaultTemplate = `{header}\n\n{items}\n\n{summary}`
+      const defaultTemplate = `{header}\n\n{items}\n\n*Total tasks:* {total}\n*Pending:* {pending}`
       const template = cfg.eod_template || defaultTemplate
       const actFmt = cfg.eod_item_fmt_activity || '{i}. {title} ({type})'
-      const srFmt  = cfg.eod_item_fmt_sr || '{i}. {title} — {sr_num} ({issue_type})'
+      const srFmt  = cfg.eod_item_fmt_sr || '{i}. {sr_num} — {title} — {issue_type}'
       const report = buildReport(items, template, actFmt, srFmt)
       const groupId = waSettings?.value?.eod_group_id || ''
       const groupName = waSettings?.value?.eod_group_name || ''
@@ -174,10 +175,10 @@ window.sendEODReport = async () => {
     ;(srs || []).forEach(s => items.push({ type: 'sr', title: s.title || '', sr_num: s.sr_number || '', issue_type: s.issue_type || '', account: s.customer_name || s.account || '', status: s.status || 'Open', raw: s }))
     items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
     const cfg = appConfig?.value || {}
-    const defaultTemplate = `{header}\n\n{items}\n\n{summary}`
+    const defaultTemplate = `{header}\n\n{items}\n\n*Total tasks:* {total}\n*Pending:* {pending}`
     const template = cfg.eod_template || defaultTemplate
     const actFmt = cfg.eod_item_fmt_activity || '{i}. {title} ({type})'
-    const srFmt  = cfg.eod_item_fmt_sr || '{i}. {title} — {sr_num} ({issue_type})'
+    const srFmt  = cfg.eod_item_fmt_sr || '{i}. {sr_num} — {title} — {issue_type}'
     const report = buildReport(items, template, actFmt, srFmt)
 
     if (!CFG.waBridgeUrl) throw new Error('WhatsApp bridge URL not configured')

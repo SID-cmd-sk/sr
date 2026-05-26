@@ -7,11 +7,7 @@ import { pageError } from '../components/stats.js'
 import { navigate } from '../services/router.js'
 import { ROLES, ISSUE_TYPES, PRIORITIES, STATUSES, ACT_TYPES, ACT_STATUSES } from '../utils/constants.js'
 
-const EOD_DEFAULT_TEMPLATE = `{header}
-
-{items}
-
-{summary}`
+const EOD_DEFAULT_TEMPLATE = `{header}\n\n{items}\n\n*Total tasks:* {total}\n*Pending:* {pending}`
 
 const FIELDS = [
   { key: 'issue_types', label: 'Issue Types', default: ISSUE_TYPES.join('\n'), placeholder: 'One per line' },
@@ -89,7 +85,7 @@ export default {
             <p style="font-size:.8rem;color:var(--text-2);margin-bottom:4px">
               Per-item placeholders:
               <code>{i}</code> <code>{title}</code> <code>{status}</code> <code>{customer}</code>
-              <code>{type}</code> (activity) <code>{sr_num}</code> <code>{issue_type}</code> (SR)
+              <code>{type}</code> (activity) <code>{sr_num}</code> <code>{issue_type}</code> <code>{description}</code> (SR)
             </p>
             <div class="form-group">
               <label class="form-label">Activity line format</label>
@@ -97,7 +93,7 @@ export default {
             </div>
             <div class="form-group">
               <label class="form-label">SR line format</label>
-              <textarea class="form-textarea config-field" data-key="eod_item_fmt_sr" rows="2" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_item_fmt_sr || '{i}. {title} — {sr_num} ({issue_type})')}</textarea>
+              <textarea class="form-textarea config-field" data-key="eod_item_fmt_sr" rows="2" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_item_fmt_sr || '{i}. {sr_num} — {title} — {issue_type}')}</textarea>
             </div>
           </div>
         </div>`
