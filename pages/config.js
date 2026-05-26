@@ -80,6 +80,26 @@ export default {
             </p>
             <textarea class="form-textarea config-field" data-key="eod_template" rows="6" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_template || EOD_DEFAULT_TEMPLATE)}</textarea>
           </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="card-header">
+            <div class="card-title">EOD Item Formats</div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+            <p style="font-size:.8rem;color:var(--text-2);margin-bottom:4px">
+              Per-item placeholders:
+              <code>{i}</code> <code>{title}</code> <code>{status}</code> <code>{customer}</code>
+              <code>{type}</code> (activity) <code>{sr_num}</code> <code>{issue_type}</code> (SR)
+            </p>
+            <div class="form-group">
+              <label class="form-label">Activity line format</label>
+              <textarea class="form-textarea config-field" data-key="eod_item_fmt_activity" rows="2" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_item_fmt_activity || '{i}. {title} ({type})')}</textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">SR line format</label>
+              <textarea class="form-textarea config-field" data-key="eod_item_fmt_sr" rows="2" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_item_fmt_sr || '{i}. {title} — {sr_num} ({issue_type})')}</textarea>
+            </div>
+          </div>
         </div>`
 
       document.querySelectorAll('.config-field').forEach(el => {
@@ -108,6 +128,10 @@ window.saveConfig = async () => {
     })
     const tmpl = document.querySelector(`.config-field[data-key="eod_template"]`)
     if (tmpl) value.eod_template = tmpl.value
+    ;['eod_item_fmt_activity', 'eod_item_fmt_sr'].forEach(k => {
+      const el = document.querySelector(`.config-field[data-key="${k}"]`)
+      if (el) value[k] = el.value
+    })
     await sb.from('settings').upsert({ key: 'app_config', value }, { onConflict: 'key' })
     dirtyFields.clear()
     btn.innerHTML = '✓ Saved'

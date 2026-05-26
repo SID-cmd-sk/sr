@@ -16,7 +16,7 @@ function todayRange() {
   return { start: s.toISOString(), end: e.toISOString() }
 }
 
-function buildReport(items, template) {
+function buildReport(items, template, actFmt, srFmt) {
   const acts = items.filter(i => i.type === 'activity')
   const srs  = items.filter(i => i.type === 'sr')
   const actPending = acts.filter(i => i.status !== 'Done').length
@@ -25,11 +25,22 @@ function buildReport(items, template) {
   const done       = total - (actPending + srPending)
   const pending    = actPending + srPending
 
-  const makeLines = (list, typeField) =>
-    list.map((item, i) => {
-      const label = item.type === 'activity' ? (item.subtype || 'Activity') : (item.issue_type || 'SR')
-      return `${i + 1}. ${item.title}${item.sr_num ? ' — ' + item.sr_num : ''} (${label})`
+  const fmtItem = (item, i) => {
+    const f = item.type === 'activity' ? actFmt : srFmt
+    return f.replace(/\{(\w+)\}/g, (_, k) => {
+      if (k === 'i') return String(i + 1)
+      if (k === 'title') return item.title
+      if (k === 'status') return item.status
+      if (k === 'customer') return item.account
+      if (k === 'type') return item.subtype || 'Activity'
+      if (k === 'sr_num') return item.sr_num || ''
+      if (k === 'issue_type') return item.issue_type || 'SR'
+      if (k === 'created_at') return item.raw?.created_at || ''
+      return `{${k}}`
     })
+  }
+
+  const makeLines = list => list.map((item, i) => fmtItem(item, i))
 
   const now = new Date()
   const date = fmtDate(now)
@@ -87,9 +98,12 @@ export default {
       })
       items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
 
+      const cfg = appConfig?.value || {}
       const defaultTemplate = `{header}\n\n{items}\n\n{summary}`
-      const template = appConfig?.value?.eod_template || defaultTemplate
-      const report = buildReport(items, template)
+      const template = cfg.eod_template || defaultTemplate
+      const actFmt = cfg.eod_item_fmt_activity || '{i}. {title} ({type})'
+      const srFmt  = cfg.eod_item_fmt_sr || '{i}. {title} — {sr_num} ({issue_type})'
+      const report = buildReport(items, template, actFmt, srFmt)
       const groupId = waSettings?.value?.eod_group_id || ''
       const groupName = waSettings?.value?.eod_group_name || ''
 
@@ -159,9 +173,12 @@ window.sendEODReport = async () => {
     ;(acts || []).forEach(a => items.push({ type: 'activity', title: a.title || '', subtype: a.type || '', account: a.contact_name || a.account || '', status: a.status || 'Open', raw: a }))
     ;(srs || []).forEach(s => items.push({ type: 'sr', title: s.title || '', sr_num: s.sr_number || '', issue_type: s.issue_type || '', account: s.customer_name || s.account || '', status: s.status || 'Open', raw: s }))
     items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
+    const cfg = appConfig?.value || {}
     const defaultTemplate = `{header}\n\n{items}\n\n{summary}`
-    const template = appConfig?.value?.eod_template || defaultTemplate
-    const report = buildReport(items, template)
+    const template = cfg.eod_template || defaultTemplate
+    const actFmt = cfg.eod_item_fmt_activity || '{i}. {title} ({type})'
+    const srFmt  = cfg.eod_item_fmt_sr || '{i}. {title} — {sr_num} ({issue_type})'
+    const report = buildReport(items, template, actFmt, srFmt)
 
     if (!CFG.waBridgeUrl) throw new Error('WhatsApp bridge URL not configured')
 
