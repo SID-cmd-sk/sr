@@ -58,6 +58,7 @@ export default {
 
     function renderWA() {
       const conn = waStatus.connected
+      const connecting = waStatus.connecting
       const waContent = document.getElementById('wa-content')
       if (!waContent) return
 
@@ -65,11 +66,15 @@ export default {
         `<option value="${escHtml(g.id)}" ${g.id === savedGroupId ? 'selected' : ''}>${escHtml(g.name)} ${g.members ? '(' + g.members + ')' : ''}</option>`
       ).join('')
 
+      const label = conn ? 'Connected' : connecting ? 'Connecting…' : 'Disconnected'
+      const color = conn ? 'var(--green)' : connecting ? 'var(--yellow)' : 'var(--text-3)'
+      const shadow = conn ? '0 0 8px var(--green)' : connecting ? '0 0 8px var(--yellow)' : 'none'
+
       waContent.innerHTML = `
         <div class="flex items-center gap-3 mb-5">
-          <div style="width:10px;height:10px;border-radius:50%;background:${conn ? 'var(--green)' : 'var(--text-3)'};box-shadow:${conn ? '0 0 8px var(--green)' : 'none'};flex-shrink:0"></div>
+          <div style="width:10px;height:10px;border-radius:50%;background:${color};box-shadow:${shadow};flex-shrink:0"></div>
           <div>
-            <div style="font-weight:700;font-size:.95rem">${conn ? 'Connected' : 'Disconnected'}</div>
+            <div style="font-weight:700;font-size:.95rem">${label}</div>
             ${conn && waStatus.phone ? `<div style="font-size:.73rem;color:var(--text-2)">${escHtml(waStatus.phone)}</div>` : ''}
           </div>
           <button class="btn ${conn ? 'btn-danger' : 'btn-primary'} btn-sm ml-auto" onclick="${conn ? `window.waDisconnect()` : `window.waConnect()`}">
