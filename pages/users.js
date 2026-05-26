@@ -9,6 +9,23 @@ import { pageError } from '../components/stats.js'
 import { smtpSend } from '../services/email.js'
 import { CFG } from '../utils/config.js'
 
+function edgeUrl(name) {
+  return `${CFG.supabaseUrl}/functions/v1/${name}`
+}
+
+function fetchWithTimeout(url, opts, ms = 20000) {
+  const c = new AbortController()
+  const t = setTimeout(() => c.abort(), ms)
+  return fetch(url, { ...opts, signal: c.signal }).finally(() => clearTimeout(t))
+}
+
+async function authHeaders() {
+  const sb = getSupabase()
+  const { data } = await sb?.auth?.getSession() || { data: null }
+  const token = data?.session?.access_token || ''
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+}
+
 export default {
   async render(container, params) {
     const sb = getSupabase()
@@ -51,6 +68,7 @@ export default {
                       ${ROLES.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
                     </select>
                     <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
+                    ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" onclick="openChangePassword('${u.id}')">Password</button>` : ''}
                   </div>
                 </td>
               </tr>`).join('') ?? ''}
@@ -156,7 +174,6 @@ ${company}`
 }
 
 window.submitInvite = async () => {
-  const sb = getSupabase()
   const email = document.getElementById('inv-email')?.value?.trim()
   const name = document.getElementById('inv-name')?.value?.trim()
   const pw = document.getElementById('inv-pw')?.value
@@ -169,20 +186,13 @@ window.submitInvite = async () => {
   btn.innerHTML = '<span class="btn-spinner"></span> Creating…'
 
   try {
-    const { data, error } = await sb.auth.signUp({
-      email,
-      password: pw,
-      options: { data: { name, role } },
+    const r = await fetchWithTimeout(edgeUrl('create-user'), {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ email, password: pw, name, role }),
     })
-    if (error) throw error
-    if (!data?.user?.id) throw new Error('User creation failed — check if signups are enabled in Supabase Auth settings')
-
-    const { data: existing } = await sb.from('users').select('id').eq('id', data.user.id).maybeSingle()
-    if (!existing) {
-      await sb.from('users').insert({
-        id: data.user.id, name, email, role, status: 'active',
-      })
-    }
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.error || 'User creation failed')
 
     const emailed = await sendWelcomeEmail(email, name, pw)
     window.closeModalForce()
@@ -191,6 +201,53 @@ window.submitInvite = async () => {
   } catch(e) {
     btn.disabled = false
     btn.innerHTML = 'Create User'
+    window.toast('✗ ' + e.message, 'error')
+  }
+}
+
+window.openChangePassword = (uid) => {
+  window.modal(`
+    <div class="modal-header">
+      <div class="modal-title">Change Password</div>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModalForce()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label req">New Password</label>
+        <input class="form-input" id="cp-pw" type="password" placeholder="Min 6 characters"/>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-primary" id="cp-submit" onclick="changePassword('${uid}')">Change Password</button>
+    </div>
+  `, 'modal-sm')
+}
+
+window.changePassword = async (uid) => {
+  const pw = document.getElementById('cp-pw')?.value
+  if (!pw || pw.length < 6) { window.toast('Password must be at least 6 characters', 'error'); return }
+
+  const btn = document.getElementById('cp-submit')
+  btn.disabled = true
+  btn.innerHTML = '<span class="btn-spinner"></span> Updating…'
+
+  try {
+    const r = await fetchWithTimeout(edgeUrl('change-password'), {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ user_id: uid, new_password: pw }),
+    })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.error || 'Password change failed')
+
+    window.closeModalForce()
+    window.toast('✓ Password changed successfully')
+  } catch(e) {
+    btn.disabled = false
+    btn.innerHTML = 'Change Password'
     window.toast('✗ ' + e.message, 'error')
   }
 }
