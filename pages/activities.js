@@ -5,6 +5,7 @@ import { ACT_TYPES, STS_CLS } from '../utils/constants.js'
 import { navigate } from '../services/router.js'
 import { skeletonPage } from '../components/skeleton.js'
 import { emptyState, pageError } from '../components/stats.js'
+import { deleteActivitySheetRow } from '../services/sheets.js'
 
 export default {
   async render(container, params) {
@@ -72,6 +73,7 @@ export default {
                 <div class="flex gap-1">
                   ${a.status !== 'Done' ? `<button class="btn btn-success btn-sm" onclick="updateActStatus('${a.id}','Done')">✓ Done</button>` : ''}
                   ${a.status === 'Open' ? `<button class="btn btn-ghost btn-sm" style="color:var(--text-3)" onclick="updateActStatus('${a.id}','Cancelled')">✕</button>` : ''}
+                  ${['Admin','Manager'].includes(me?.role) ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAct('${a.id}','${escHtml(a.activity_no)}')" title="Delete">🗑</button>` : ''}
                 </div>
               </td>
             </tr>`).join('')}
@@ -89,6 +91,21 @@ window.updateActStatus = async (id, status) => {
   await sb.from('activities').update({ status, closed_at: status === 'Done' ? new Date().toISOString() : null }).eq('id', id)
   window.toast(`✓ Marked as ${status}`)
   navigate('activities')
+}
+
+window.deleteAct = async (id, activityNo) => {
+  if (!confirm(`Delete activity ${activityNo}? This will also remove it from the sheet.`)) return
+  const sb = getSupabase()
+  try {
+    await sb.from('activities').delete().eq('id', id)
+    if (activityNo) {
+      deleteActivitySheetRow(activityNo).catch(() => {})
+    }
+    window.toast('✓ Activity deleted')
+    navigate('activities')
+  } catch(e) {
+    window.toast('Delete failed: ' + e.message, 'error')
+  }
 }
 
 window.openNewActivity = (users) => {

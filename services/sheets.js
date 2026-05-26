@@ -104,3 +104,30 @@ export async function syncActivityRow(activityId, srId) {
     _enqueue('syncActivityRow', { activityId, srId })
   }
 }
+
+export async function deleteSRDriveFolder(srNumber) {
+  if (!CFG.appsScriptUrl) return
+  try {
+    await _postToAppsScript({ action:'delete_sr_folder', sr_number:srNumber })
+  } catch(e) {
+    logAppError(`Delete SR drive folder error: ${e.message}`)
+  }
+}
+
+export async function deleteSRSheetRow(srNumber) {
+  if (!CFG.appsScriptUrl) return
+  try {
+    await _postToAppsScript({ action:'delete_sr_row', sr_number:srNumber })
+  } catch(e) {
+    logAppError(`Delete SR sheet row error: ${e.message}`)
+  }
+}
+
+export async function deleteActivitySheetRow(activityNo) {
+  if (!CFG.appsScriptUrl) return
+  try {
+    await _postToAppsScript({ action:'delete_activity_row', activity_no:activityNo })
+  } catch(e) {
+    logAppError(`Delete activity sheet row error: ${e.message}`)
+  }
+}

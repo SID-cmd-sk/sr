@@ -19,7 +19,7 @@ const CONFIG = {
 }
 
 // Timestamp window to prevent replay attacks (5 minutes)
-const TIMESTAMP_WINDOW_MS = 5 * 60 * 1000
+const TIMESTAMP_WINDOW_MS = 10 * 60 * 1000
 
 // ────────────────────────────────────────────────────────────
 // SECURITY: Request verification & rate limiting
@@ -104,7 +104,7 @@ function doPost(e) {
     }
     
     // Whitelist allowed actions
-    const allowedActions = ['create_sr_folder', 'append_sr_row', 'update_sr_row', 'append_activity_row', 'create_export']
+    const allowedActions = ['create_sr_folder', 'append_sr_row', 'update_sr_row', 'append_activity_row', 'create_export', 'delete_sr_folder', 'delete_sr_row', 'delete_activity_row']
     if (!allowedActions.includes(action)) {
       console.warn(`[Security] Unknown action attempted: ${action} from ${ip}`)
       return json({ ok: false, error: `Unknown action: ${action}` })
@@ -116,6 +116,9 @@ function doPost(e) {
       case 'update_sr_row':       return json(updateSRRow(payload))
       case 'append_activity_row': return json(appendActivityRow(payload))
       case 'create_export':       return json(createExport(payload))
+      case 'delete_sr_folder':    return json(deleteSRFolder(payload))
+      case 'delete_sr_row':       return json(deleteSRRow(payload))
+      case 'delete_activity_row': return json(deleteActivityRow(payload))
       default:
         return json({ ok: false, error: 'Unexpected error' })
     }
@@ -126,6 +129,9 @@ function doPost(e) {
 }
 
 function doGet(e) {
+  if (e.parameter && e.parameter.action) {
+    return doPost(e)
+  }
   return json({ ok: true, message: 'SR Platform Apps Script Bridge is running.' })
 }
 
@@ -240,6 +246,49 @@ function createExport(p) {
   const blob   = Utilities.newBlob(content, 'text/plain', filename)
   const file   = folder.createFile(blob)
   return { ok: true, file_id: file.getId(), file_url: file.getUrl() }
+}
+
+function deleteSRFolder(p) {
+  const { sr_number } = p
+  if (!sr_number) return { ok: false, error: 'sr_number required' }
+  const root = DriveApp.getFolderById(CONFIG.SR_ROOT_FOLDER_ID)
+  const year = (sr_number.match(/-(\d{4})-/)||[])[1] || new Date().getFullYear().toString()
+  const yearIter = root.getFoldersByName(year)
+  if (!yearIter.hasNext()) return { ok: false, error: 'Year folder not found' }
+  const yearFolder = yearIter.next()
+  const srIter = yearFolder.getFoldersByName(sr_number)
+  if (!srIter.hasNext()) return { ok: false, error: 'SR folder not found' }
+  const srFolder = srIter.next()
+  srFolder.setTrashed(true)
+  return { ok: true }
+}
+
+function deleteSRRow(p) {
+  const { sr_number } = p
+  if (!sr_number) return { ok: false, error: 'sr_number required' }
+  const sheet = getSheet(CONFIG.SR_SHEET_NAME)
+  const data  = sheet.getDataRange().getValues()
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === sr_number) {
+      sheet.deleteRow(i + 1)
+      return { ok: true, deleted_row: i + 1 }
+    }
+  }
+  return { ok: false, error: 'SR row not found' }
+}
+
+function deleteActivityRow(p) {
+  const { activity_no } = p
+  if (!activity_no) return { ok: false, error: 'activity_no required' }
+  const sheet = getSheet(CONFIG.ACTIVITY_SHEET_NAME)
+  const data  = sheet.getDataRange().getValues()
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === activity_no) {
+      sheet.deleteRow(i + 1)
+      return { ok: true, deleted_row: i + 1 }
+    }
+  }
+  return { ok: false, error: 'Activity row not found' }
 }
 
 // ────────────────────────────────────────────────────────────

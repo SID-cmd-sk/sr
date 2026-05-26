@@ -10,7 +10,7 @@ import { modal, closeModalForce } from '../components/modal.js'
 import { CFG } from '../utils/config.js'
 import { auditLog } from '../services/audit.js'
 import { sendEmailFromBrowser, triggerStepEmail, upsertEmailLog, sendEmailModal, doSendEmail } from '../services/email.js'
-import { syncSheetsRow, createDriveFolder } from '../services/sheets.js'
+import { syncSheetsRow, createDriveFolder, deleteSRDriveFolder, deleteSRSheetRow } from '../services/sheets.js'
 
 async function render(container, params = {}) {
   container.innerHTML = skeletonPage()
@@ -68,6 +68,7 @@ async function render(container, params = {}) {
             WhatsApp
           </button>
           ${canEdit ? `<button class="btn btn-ghost" onclick="navigate('sr-edit',{id:'${id}'})">Edit</button>` : ''}
+          ${['Admin'].includes(me?.role) ? `<button class="btn btn-ghost" style="color:var(--red)" onclick="openDeleteSRModal('${id}','${escHtml(sr.sr_number)}')">Delete</button>` : ''}
         </div>
       </div>
 
@@ -208,6 +209,8 @@ async function render(container, params = {}) {
     window.reopenSR = reopenSR
     window.sendWA = sendWA
     window.sendWABySRId = sendWABySRId
+    window.openDeleteSRModal = openDeleteSRModal
+    window.deleteSR = deleteSR
   } catch(e) {
     container.innerHTML = pageError('Could not load service request', e.message, true, 'sr')
   }
@@ -376,6 +379,47 @@ async function reopenSR(srId) {
   await auditLog('SR_REOPEN', srId, 'sr', 'Reopened SR')
   toast('✓ SR reopened')
   navigate('sr-detail', { id:srId })
+}
+
+function openDeleteSRModal(srId, srNumber) {
+  modal(`
+    <div class="modal-header">
+      <div class="modal-title">Delete SR</div>
+      <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModalForce()">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Are you sure you want to delete <strong>${escHtml(srNumber)}</strong>? This will remove the Drive folder and sheet row.</span>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModalForce()">Cancel</button>
+      <button class="btn btn-danger" onclick="deleteSR('${srId}','${escHtml(srNumber)}')">Delete SR</button>
+    </div>
+  `, 'modal-sm')
+}
+
+async function deleteSR(srId, srNumber) {
+  const sb = getSupabase()
+  const btn = document.querySelector('.modal-footer .btn-danger')
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span> Deleting…' }
+  try {
+    await Promise.allSettled([
+      deleteSRDriveFolder(srNumber),
+      deleteSRSheetRow(srNumber),
+    ])
+    await sb.from('sr').delete().eq('id', srId)
+    await auditLog('SR_DELETE', srId, 'sr', `Deleted SR ${srNumber}`)
+    closeModalForce()
+    toast('✓ SR deleted')
+    navigate('sr')
+  } catch(e) {
+    toast('Delete failed: ' + e.message, 'error')
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete SR' }
+  }
 }
 
 async function sendWA(srId, phone, srNum, status, custName) {
