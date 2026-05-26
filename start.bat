@@ -4,7 +4,7 @@ color 0A
 
 echo.
 echo  ================================================
-echo   SR Platform — Starting Local 
+echo   SR Platform — Starting Local localy
 echo  ================================================
 echo.
 
