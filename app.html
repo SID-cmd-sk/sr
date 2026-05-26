@@ -617,7 +617,7 @@ async function bootApp() {
       try {
         await loadProfile(session.user.id)
         showApp()
-        initRouter()
+        if (event !== 'INITIAL_SESSION') initRouter()
       } catch(e) {
         showAuth()
       }

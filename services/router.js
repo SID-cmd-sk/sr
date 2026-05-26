@@ -37,6 +37,7 @@ const pageTitles = {
 let currentPage = 'dashboard'
 let currentParams = {}
 let routeListeners = []
+let _routerInitialized = false
 
 function appBase() {
   const p = window.location.pathname
@@ -99,7 +100,26 @@ export function getPageTitle(page) {
 }
 
 export function initRouter() {
+  if (_routerInitialized) return
+  _routerInitialized = true
+
   const base = appBase()
+  const savedRoute = sessionStorage.getItem('sr_restore')
+  if (savedRoute) {
+    sessionStorage.removeItem('sr_restore')
+    try {
+      const restore = JSON.parse(savedRoute)
+      const qs = Object.keys(restore.params).length ? '?' + new URLSearchParams(restore.params).toString() : ''
+      history.replaceState({ page: restore.page, params: restore.params }, '', base + (routeMap[restore.page] || '/app/dashboard') + qs)
+      window.addEventListener('popstate', e => {
+        const state = e.state || { page: 'dashboard', params: {} }
+        resolveRoute(state.page, state.params)
+      })
+      resolveRoute(restore.page, restore.params)
+      return
+    } catch {}
+  }
+
   let path = window.location.pathname
   if (base && path.startsWith(base)) path = path.slice(base.length) || '/'
 

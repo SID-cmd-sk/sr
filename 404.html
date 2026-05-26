@@ -22,7 +22,16 @@ p { color:#8B95B0; font-size:.85rem; margin:0 0 20px; line-height:1.6 }
 </div>
 <script>
 ;(async function() {
+  const fullPath = window.location.pathname + window.location.search
   const basePath = (window.location.pathname.match(/(.*?)\/app(\.html|\/)/)?.[1]) || ''
+  const pathAfterBase = basePath ? fullPath.slice(basePath.length) : fullPath
+  const qIdx = pathAfterBase.indexOf('?')
+  const routePath = qIdx === -1 ? pathAfterBase : pathAfterBase.substring(0, qIdx)
+  const searchParams = qIdx === -1 ? {} : Object.fromEntries(new URLSearchParams(pathAfterBase.substring(qIdx)))
+  const routeMap = {'/app/dashboard':'dashboard','/app/sr':'sr','/app/sr-new':'sr-new','/app/sr-detail':'sr-detail','/app/sr-edit':'sr-edit','/app/activities':'activities','/app/templates':'templates','/app/routes':'routes','/app/whatsapp':'whatsapp','/app/users':'users','/app/reports':'reports','/app/settings':'settings','/app/create':'create'}
+  let page = 'dashboard'
+  for (const [rp, p] of Object.entries(routeMap)) { if (routePath === rp) { page = p; break } }
+  sessionStorage.setItem('sr_restore', JSON.stringify({ page, params: searchParams }))
   try {
     if (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL) {
       const { createClient } = window.supabase

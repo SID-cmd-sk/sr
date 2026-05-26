@@ -37,10 +37,12 @@ function _validateSrData(sr) {
 
 async function _postToAppsScript(body) {
   if (!CFG.appsScriptUrl) throw new Error('Apps Script URL not configured')
-  const res = await fetch(CFG.appsScriptUrl, {
+  const payload = JSON.stringify({ token: CFG.appsScriptToken, timestamp: Date.now().toString(), ...body })
+  const url = CFG.appsScriptUrl + (CFG.appsScriptUrl.includes('?') ? '&' : '?') + '_t=' + Date.now()
+  const res = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'text/plain' },
-    body: JSON.stringify({ token: CFG.appsScriptToken, timestamp: Date.now().toString(), ...body }),
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: 'payload=' + encodeURIComponent(payload),
   })
   const json = await res.json().catch(() => ({}))
   if (!json.ok) throw new Error(json.error || `Apps Script error ${res.status}`)
@@ -92,8 +94,13 @@ export async function syncActivityRow(activityId, srId) {
     _enqueue('syncActivityRow', { activityId, srId })
     return
   }
+  let srNumber = ''
+  if (srId) {
+    const { data:sr } = await sb.from('sr').select('sr_number').eq('id',srId).single().catch(()=>({}))
+    if (sr) srNumber = sr.sr_number
+  }
   try {
-    await _postToAppsScript({ action:'append_activity_row', title:act.title, type:act.type, status:act.status, owner_name:act.owner_name, account:act.account, contact_name:act.contact_name, linked_sr:srId, due_date:act.due_date, created_at:act.created_at })
+    await _postToAppsScript({ action:'append_activity_row', title:act.title, type:act.type, status:act.status, owner_name:act.owner_name, account:act.account, contact_name:act.contact_name, linked_sr:srNumber, due_date:act.due_date, created_at:act.created_at })
   } catch(e) {
     logAppError(`Activity sync error: ${e.message}`)
     _enqueue('syncActivityRow', { activityId, srId })

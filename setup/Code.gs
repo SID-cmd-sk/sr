@@ -75,7 +75,14 @@ function checkRateLimit(action, ip) {
 function doPost(e) {
   try {
     const ip = e.userIp || 'unknown'
-    const payload = JSON.parse(e.postData.contents)
+    let payload
+    if (e.parameter && e.parameter.payload) {
+      payload = JSON.parse(e.parameter.payload)
+    } else if (e.postData && e.postData.contents) {
+      payload = JSON.parse(e.postData.contents)
+    } else {
+      return json({ ok: false, error: 'Invalid request format' }, 400)
+    }
     
     // SECURITY: Validate timestamp to prevent replay attacks
     const verification = verifyRequest(payload, payload.token, payload.timestamp)

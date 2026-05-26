@@ -197,8 +197,10 @@ export default {
       window.saveDrive = async () => {
         const url = document.getElementById('sd-url')?.value?.trim()
         const token = document.getElementById('sd-token')?.value
-        await sb.from('settings').upsert({ key: 'drive', value: { sr_folder_id: document.getElementById('sd-folder')?.value, apps_script_url: url, apps_script_token: token }, updated_by: me.id })
-        CFG.appsScriptUrl = url; CFG.appsScriptToken = token
+        const existingValue = drv
+        const newValue = { sr_folder_id: document.getElementById('sd-folder')?.value, apps_script_url: url, apps_script_token: token, activities_folder_id: existingValue.activities_folder_id || CFG.activitiesFolderId, spreadsheet_id: existingValue.spreadsheet_id || CFG.srSpreadsheetId, sr_sheet_name: existingValue.sr_sheet_name || CFG.srSheetName, activity_sheet_name: existingValue.activity_sheet_name || CFG.activitySheetName }
+        await sb.from('settings').upsert({ key: 'drive', value: newValue, updated_by: me.id })
+        CFG.appsScriptUrl = url; CFG.appsScriptToken = token; CFG.srFolderId = newValue.sr_folder_id; CFG.activitiesFolderId = newValue.activities_folder_id; CFG.srSpreadsheetId = newValue.spreadsheet_id; CFG.srSheetName = newValue.sr_sheet_name; CFG.activitySheetName = newValue.activity_sheet_name
         const el = document.getElementById('drive-msg'); if (el) { el.textContent = '✓ Saved'; el.style.color = 'var(--green)'; setTimeout(() => el.textContent = '', 3000) }
       }
 
