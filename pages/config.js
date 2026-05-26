@@ -62,18 +62,42 @@ export default {
         <div class="card" style="margin-top:14px">
           <div class="card-header">
             <div class="card-title">EOD Report Template</div>
+            <button class="btn btn-ghost btn-sm" onclick="toggleEodInfo()" title="Placeholder reference" style="padding:4px 8px">?</button>
           </div>
           <div class="card-body">
-            <p style="font-size:.8rem;color:var(--text-2);margin-bottom:8px">
-              Placeholders:
-              <code>{header}</code> <code>{items}</code> <code>{items_activities}</code> <code>{items_srs}</code>
-              <code>{summary}</code> <code>{date}</code> <code>{time}</code> <code>{weekday}</code>
-              <code>{total}</code> <code>{done}</code> <code>{pending}</code>
-              <code>{activity_count}</code> <code>{sr_count}</code>
-              <code>{activities_done}</code> <code>{activities_pending}</code>
-              <code>{srs_done}</code> <code>{srs_pending}</code>
-              <code>{separator}</code>
-            </p>
+            <div id="eod-info-table" style="display:none;margin-bottom:14px;font-size:.78rem;background:var(--bg-elevated);border-radius:var(--r);padding:12px;overflow-x:auto">
+              <table style="width:100%;border-collapse:collapse">
+                <tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px;color:var(--text-2)">Placeholder</th><th style="text-align:left;padding:4px 8px;color:var(--text-2)">Description</th><th style="text-align:left;padding:4px 8px;color:var(--text-2)">Example</th></tr>
+                <tr><td style="padding:4px 8px"><code>{header}</code></td><td style="padding:4px 8px">Bold title line</td><td style="padding:4px 8px">📋 *EOD Report — 26 May 2026*</td></tr>
+                <tr><td style="padding:4px 8px"><code>{items}</code></td><td style="padding:4px 8px">All items numbered (uses item formats)</td><td style="padding:4px 8px">1. SR-1013 — Title — Bug</td></tr>
+                <tr><td style="padding:4px 8px"><code>{items_activities}</code></td><td style="padding:4px 8px">Only activity lines</td><td style="padding:4px 8px">1. Meeting (Call)</td></tr>
+                <tr><td style="padding:4px 8px"><code>{items_srs}</code></td><td style="padding:4px 8px">Only SR lines</td><td style="padding:4px 8px">1. SR-1013 — Title — Bug</td></tr>
+                <tr><td style="padding:4px 8px"><code>{summary}</code></td><td style="padding:4px 8px">Combined done/pending summary</td><td style="padding:4px 8px">*3 tasks* — 2 done, 1 pending</td></tr>
+                <tr><td style="padding:4px 8px"><code>{date}</code></td><td style="padding:4px 8px">Current date</td><td style="padding:4px 8px">26 May 2026</td></tr>
+                <tr><td style="padding:4px 8px"><code>{time}</code></td><td style="padding:4px 8px">Current time</td><td style="padding:4px 8px">05:30 PM</td></tr>
+                <tr><td style="padding:4px 8px"><code>{weekday}</code></td><td style="padding:4px 8px">Day of week</td><td style="padding:4px 8px">Tuesday</td></tr>
+                <tr><td style="padding:4px 8px"><code>{total}</code></td><td style="padding:4px 8px">Total task count</td><td style="padding:4px 8px">3</td></tr>
+                <tr><td style="padding:4px 8px"><code>{done}</code></td><td style="padding:4px 8px">Completed task count</td><td style="padding:4px 8px">2</td></tr>
+                <tr><td style="padding:4px 8px"><code>{pending}</code></td><td style="padding:4px 8px">Pending task count</td><td style="padding:4px 8px">1</td></tr>
+                <tr><td style="padding:4px 8px"><code>{activity_count}</code></td><td style="padding:4px 8px">Number of activities</td><td style="padding:4px 8px">2</td></tr>
+                <tr><td style="padding:4px 8px"><code>{sr_count}</code></td><td style="padding:4px 8px">Number of SRs</td><td style="padding:4px 8px">1</td></tr>
+                <tr><td style="padding:4px 8px"><code>{activities_done}</code></td><td style="padding:4px 8px">Completed activities</td><td style="padding:4px 8px">1</td></tr>
+                <tr><td style="padding:4px 8px"><code>{activities_pending}</code></td><td style="padding:4px 8px">Pending activities</td><td style="padding:4px 8px">1</td></tr>
+                <tr><td style="padding:4px 8px"><code>{srs_done}</code></td><td style="padding:4px 8px">Closed SRs</td><td style="padding:4px 8px">0</td></tr>
+                <tr><td style="padding:4px 8px"><code>{srs_pending}</code></td><td style="padding:4px 8px">Open SRs</td><td style="padding:4px 8px">1</td></tr>
+                <tr><td style="padding:4px 8px"><code>{separator}</code></td><td style="padding:4px 8px">Horizontal divider line</td><td style="padding:4px 8px">──────────</td></tr>
+                <tr style="border-top:1px solid var(--border)"><td colspan="3" style="padding:6px 8px;color:var(--accent-lg);font-weight:600">Per-item placeholders (for item format textareas)</td></tr>
+                <tr><td style="padding:4px 8px"><code>{i}</code></td><td style="padding:4px 8px">Item number (1-based)</td><td style="padding:4px 8px">1</td></tr>
+                <tr><td style="padding:4px 8px"><code>{title}</code></td><td style="padding:4px 8px">Item title</td><td style="padding:4px 8px">123test</td></tr>
+                <tr><td style="padding:4px 8px"><code>{status}</code></td><td style="padding:4px 8px">Current status</td><td style="padding:4px 8px">Open / Done</td></tr>
+                <tr><td style="padding:4px 8px"><code>{customer}</code></td><td style="padding:4px 8px">Account/customer name</td><td style="padding:4px 8px">Acme Corp</td></tr>
+                <tr><td style="padding:4px 8px"><code>{type}</code></td><td style="padding:4px 8px">Activity subtype</td><td style="padding:4px 8px">Call / Meeting</td></tr>
+                <tr><td style="padding:4px 8px"><code>{sr_num}</code></td><td style="padding:4px 8px">SR number</td><td style="padding:4px 8px">SR-2026-1013</td></tr>
+                <tr><td style="padding:4px 8px"><code>{issue_type}</code></td><td style="padding:4px 8px">SR issue type</td><td style="padding:4px 8px">Bug / Feature</td></tr>
+                <tr><td style="padding:4px 8px"><code>{description}</code></td><td style="padding:4px 8px">SR issue description</td><td style="padding:4px 8px">Customer reported…</td></tr>
+                <tr><td style="padding:4px 8px"><code>{created_at}</code></td><td style="padding:4px 8px">Creation timestamp</td><td style="padding:4px 8px">2026-05-26T…</td></tr>
+              </table>
+            </div>
             <textarea class="form-textarea config-field" data-key="eod_template" rows="6" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_template || EOD_DEFAULT_TEMPLATE)}</textarea>
           </div>
         </div>
@@ -82,11 +106,6 @@ export default {
             <div class="card-title">EOD Item Formats</div>
           </div>
           <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
-            <p style="font-size:.8rem;color:var(--text-2);margin-bottom:4px">
-              Per-item placeholders:
-              <code>{i}</code> <code>{title}</code> <code>{status}</code> <code>{customer}</code>
-              <code>{type}</code> (activity) <code>{sr_num}</code> <code>{issue_type}</code> <code>{description}</code> (SR)
-            </p>
             <div class="form-group">
               <label class="form-label">Activity line format</label>
               <textarea class="form-textarea config-field" data-key="eod_item_fmt_activity" rows="2" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_item_fmt_activity || '{i}. {title} ({type})')}</textarea>
@@ -105,6 +124,11 @@ export default {
       container.innerHTML = pageError('Could not load config', e.message, true, 'config')
     }
   }
+}
+
+window.toggleEodInfo = () => {
+  const el = document.getElementById('eod-info-table')
+  if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none'
 }
 
 window.saveConfig = async () => {
