@@ -284,7 +284,23 @@ function deleteActivityRow(p) {
   const data  = sheet.getDataRange().getValues()
   for (let i = 1; i < data.length; i++) {
     if (data[i][0] === activity_no) {
+      const rowData = data[i]
       sheet.deleteRow(i + 1)
+
+      const removed = getSheet('Removed Activities')
+      if (removed.getLastRow() === 0) {
+        const headers = ['Activity No','Title','Type','Status','Owner','Account','Contact','Linked SR','Due Date','Created At','Removed At']
+        const range = removed.getRange(1, 1, 1, headers.length)
+        range.setValues([headers])
+        range.setFontWeight('bold')
+        range.setBackground('#0A0C12')
+        range.setFontColor('#EF4444')
+        removed.setFrozenRows(1)
+      }
+      const removedRow = rowData.slice()
+      removedRow.push(new Date().toISOString())
+      removed.appendRow(removedRow)
+
       return { ok: true, deleted_row: i + 1 }
     }
   }
