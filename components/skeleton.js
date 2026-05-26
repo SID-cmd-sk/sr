@@ -1,0 +1,3 @@
+export function skeletonPage() {
+  return '<div style="padding:10px"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px"><div class="sk sk-h" style="width:200px"></div><div class="sk sk-btn"></div></div><div class="sk-grid"><div class="sk sk-stat"></div><div class="sk sk-stat"></div><div class="sk sk-stat"></div><div class="sk sk-stat"></div><div class="sk sk-stat"></div><div class="sk sk-stat"></div></div><div class="card" style="padding:0"><div class="sk sk-row" style="margin:10px 12px"></div><div class="sk sk-row" style="margin:10px 12px"></div><div class="sk sk-row" style="margin:10px 12px"></div><div class="sk sk-row" style="margin:10px 12px"></div><div class="sk sk-row" style="margin:10px 12px"></div></div></div>'
+}

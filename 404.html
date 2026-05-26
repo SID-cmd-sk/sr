@@ -1,8 +1,42 @@
 <!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8"/>
-<meta http-equiv="refresh" content="0; url=login.html"/>
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <title>SR Platform</title>
+<style>
+body { margin:0; background:#070B14; color:#F0F4FF; font-family:system-ui,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; text-align:center }
+.card { background:#131929; border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:32px; max-width:440px }
+h2 { margin:0 0 8px; font-size:1.2rem }
+p { color:#8B95B0; font-size:.85rem; margin:0 0 20px; line-height:1.6 }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; background:#3B82F6; color:#fff; border:none; text-decoration:none }
+.btn:hover { background:#2563EB }
+.spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.25); border-top-color:#fff; border-radius:50%; animation:spin .65s linear infinite; display:inline-block; margin-bottom:16px }
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
 </head><body>
-<script>window.location.href='login.html'</script>
+<div class="card">
+  <div class="spinner"></div>
+  <h2>Redirecting to SR Platform...</h2>
+  <p>Please wait while we restore your session</p>
+</div>
+<script>
+;(async function() {
+  try {
+    if (window.APP_CONFIG && window.APP_CONFIG.SUPABASE_URL) {
+      const { createClient } = window.supabase
+      const sb = createClient(APP_CONFIG.SUPABASE_URL, APP_CONFIG.SUPABASE_ANON, {
+        auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
+      })
+      const { data } = await sb.auth.getSession()
+      if (data.session) {
+        const path = window.location.pathname
+        window.location.href = path.startsWith('/app') ? 'app.html' : 'app.html'
+        return
+      }
+    }
+  } catch(e) {}
+  window.location.href = 'login.html'
+})()
+</script>
 </body></html>

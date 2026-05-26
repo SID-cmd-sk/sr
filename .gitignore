@@ -1,5 +1,41 @@
+# Environment
 .env
+.env.local
+.env.production
+
+# Dependencies
+node_modules/
+
+# Keys & Certificates
+*.key
+*.pem
+
+# Credentials & Tokens
+tokens/
+credentials/
+
+# Logs
+logs/
+debug/
+
+# Test artifacts
+playwright-report/
+screenshots/
+test-results/
+
+# AI Internal (NEVER commit or deploy)
+.ai-internal/
+.ai-internal/*
+.ai-system/
+.ai-system/*
+
+# Reports
+reports/
+
+# WhatsApp auth
 /setup/wa-service/wa_auth
-/node_modules
-/test-results
 /setup/wa-service
+
+# OS files
+.DS_Store
+Thumbs.db
