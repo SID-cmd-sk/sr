@@ -427,7 +427,7 @@ LEFT JOIN public.users c ON c.id = a.creator_id;
 -- AUTO-CREATE USER PROFILE ON AUTH SIGNUP / INVITE
 -- ────────────────────────────────────────────────────────────
 CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS TRIGGER AS $$
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER AS $$
 BEGIN
   INSERT INTO public.users (id, name, email, role, status)
   VALUES (
@@ -442,8 +442,11 @@ BEGIN
     email  = EXCLUDED.email,
     status = CASE WHEN public.users.status = 'pending' THEN 'active' ELSE public.users.status END;
   RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'handle_new_user skipped for %: %', NEW.email, SQLERRM;
+  RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 CREATE OR REPLACE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users

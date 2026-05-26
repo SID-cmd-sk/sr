@@ -177,6 +177,13 @@ window.submitInvite = async () => {
     if (error) throw error
     if (!data?.user?.id) throw new Error('User creation failed — check if signups are enabled in Supabase Auth settings')
 
+    const { data: existing } = await sb.from('users').select('id').eq('id', data.user.id).maybeSingle()
+    if (!existing) {
+      await sb.from('users').insert({
+        id: data.user.id, name, email, role, status: 'active',
+      })
+    }
+
     const emailed = await sendWelcomeEmail(email, name, pw)
     window.closeModalForce()
     window.toast(emailed ? '✓ User created — credentials sent via email' : '✓ User created — email notification skipped', 'success')
