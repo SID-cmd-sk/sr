@@ -1,12 +1,24 @@
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "authorization, content-type, apikey, x-client-info",
+}
+
+function json(data: unknown, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } })
+}
+
 async function main(req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: corsHeaders })
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405)
+
   try {
-    if (req.method !== "POST") return new Response("Method not allowed", { status: 405 })
     const authHeader = req.headers.get("Authorization")
-    if (!authHeader) return new Response(JSON.stringify({ error: "Missing Authorization" }), { status: 401 })
+    if (!authHeader) return json({ error: "Missing Authorization" }, 401)
 
     const { user_id, new_password } = await req.json()
-    if (!user_id || !new_password) return new Response(JSON.stringify({ error: "user_id and new_password are required" }), { status: 400 })
-    if (new_password.length < 6) return new Response(JSON.stringify({ error: "Password must be at least 6 characters" }), { status: 400 })
+    if (!user_id || !new_password) return json({ error: "user_id and new_password are required" }, 400)
+    if (new_password.length < 6) return json({ error: "Password must be at least 6 characters" }, 400)
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -14,7 +26,7 @@ async function main(req: Request): Promise<Response> {
     const meRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
       headers: { Authorization: authHeader, apikey: supabaseServiceKey },
     })
-    if (meRes.status !== 200) return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 })
+    if (meRes.status !== 200) return json({ error: "Unauthorized" }, 401)
     const me = await meRes.json()
 
     const pRes = await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${me.id}&select=role`, {
@@ -22,7 +34,7 @@ async function main(req: Request): Promise<Response> {
     })
     const profiles = await pRes.json()
     if (!Array.isArray(profiles) || profiles[0]?.role !== "Admin") {
-      return new Response(JSON.stringify({ error: "Admin access required" }), { status: 403 })
+      return json({ error: "Admin access required" }, 403)
     }
 
     const res = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user_id}`, {
@@ -36,14 +48,12 @@ async function main(req: Request): Promise<Response> {
     })
     if (!res.ok) {
       const d = await res.json()
-      return new Response(JSON.stringify({ error: d?.msg || d?.message || "Password change failed" }), { status: res.status })
+      return json({ error: d?.msg || d?.message || "Password change failed" }, res.status)
     }
 
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { "Content-Type": "application/json" },
-    })
+    return json({ success: true })
   } catch (e) {
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Internal error" }), { status: 500 })
+    return json({ error: e instanceof Error ? e.message : "Internal error" }, 500)
   }
 }
 
