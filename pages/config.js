@@ -7,6 +7,12 @@ import { pageError } from '../components/stats.js'
 import { navigate } from '../services/router.js'
 import { ROLES, ISSUE_TYPES, PRIORITIES, STATUSES, ACT_TYPES, ACT_STATUSES } from '../utils/constants.js'
 
+const EOD_DEFAULT_TEMPLATE = `{header}
+
+{items}
+
+{summary}`
+
 const FIELDS = [
   { key: 'issue_types', label: 'Issue Types', default: ISSUE_TYPES.join('\n'), placeholder: 'One per line' },
   { key: 'activity_types', label: 'Activity Types', default: ACT_TYPES.join('\n'), placeholder: 'One per line' },
@@ -56,6 +62,15 @@ export default {
                 </div>`
             }).join('')}
           </div>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div class="card-header">
+            <div class="card-title">EOD Report Template</div>
+          </div>
+          <div class="card-body">
+            <p style="font-size:.8rem;color:var(--text-2);margin-bottom:8px">Use placeholders: <code>{header}</code> <code>{items}</code> <code>{summary}</code> <code>{date}</code> <code>{total}</code> <code>{done}</code> <code>{pending}</code></p>
+            <textarea class="form-textarea config-field" data-key="eod_template" rows="6" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_template || EOD_DEFAULT_TEMPLATE)}</textarea>
+          </div>
         </div>`
 
       document.querySelectorAll('.config-field').forEach(el => {
@@ -82,6 +97,8 @@ window.saveConfig = async () => {
         value[f.key] = lines
       }
     })
+    const tmpl = document.querySelector(`.config-field[data-key="eod_template"]`)
+    if (tmpl) value.eod_template = tmpl.value
     await sb.from('settings').upsert({ key: 'app_config', value }, { onConflict: 'key' })
     dirtyFields.clear()
     btn.innerHTML = '✓ Saved'

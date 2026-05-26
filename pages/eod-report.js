@@ -16,24 +16,32 @@ function todayRange() {
   return { start: s.toISOString(), end: e.toISOString() }
 }
 
-function buildReport(items) {
-  const lines = [`📋 *${fmtDate(new Date())}*`, '']
+function buildItemLines(items) {
   let pending = 0
-
-  items.forEach((item, i) => {
+  const lines = items.map((item, i) => {
     if (item.type === 'activity') {
-      lines.push(`${i + 1}. ${item.title} (${item.subtype || 'Activity'})`)
       if (item.status !== 'Done') pending++
-    } else {
-      lines.push(`${i + 1}. ${item.title} — ${item.sr_num} (${item.issue_type || 'SR'})`)
-      if (item.status !== 'Closed') pending++
+      return `${i + 1}. ${item.title} (${item.subtype || 'Activity'})`
     }
+    if (item.status !== 'Closed') pending++
+    return `${i + 1}. ${item.title} — ${item.sr_num} (${item.issue_type || 'SR'})`
   })
+  return { lines, pending, total: items.length, done: items.length - pending }
+}
 
-  const done = items.length - pending
-  lines.push('')
-  lines.push(`*${items.length} tasks* — ${done} done, ${pending} pending`)
-  return lines.join('\n')
+function buildReport(items, template) {
+  const { lines, pending, total, done } = buildItemLines(items)
+  const date = fmtDate(new Date())
+  const vars = {
+    header: `📋 *${date}*`,
+    items:  lines.join('\n'),
+    summary: `*${total} tasks* — ${done} done, ${pending} pending`,
+    date,
+    total: String(total),
+    done: String(done),
+    pending: String(pending),
+  }
+  return template.replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? `{${k}}`)
 }
 
 export default {
@@ -47,10 +55,11 @@ export default {
     try {
       const range = todayRange()
 
-      const [{ data: acts }, { data: srs }, { data: waSettings }] = await Promise.all([
+      const [{ data: acts }, { data: srs }, { data: waSettings }, { data: appConfig }] = await Promise.all([
         sb.from('activities').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
         sb.from('sr').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
         sb.from('settings').select('value').eq('key', 'whatsapp').single(),
+        sb.from('settings').select('value').eq('key', 'app_config').single(),
       ])
 
       const items = []
@@ -62,7 +71,9 @@ export default {
       })
       items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
 
-      const report = buildReport(items)
+      const defaultTemplate = `{header}\n\n{items}\n\n{summary}`
+      const template = appConfig?.value?.eod_template || defaultTemplate
+      const report = buildReport(items, template)
       const groupId = waSettings?.value?.eod_group_id || ''
       const groupName = waSettings?.value?.eod_group_name || ''
 
@@ -118,10 +129,11 @@ window.sendEODReport = async () => {
     const sb = getSupabase()
     const range = todayRange()
 
-    const [{ data: acts }, { data: srs }, { data: waSettings }] = await Promise.all([
+    const [{ data: acts }, { data: srs }, { data: waSettings }, { data: appConfig }] = await Promise.all([
       sb.from('activities').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
       sb.from('sr').select('*').gte('created_at', range.start).lte('created_at', range.end).order('created_at'),
       sb.from('settings').select('value').eq('key', 'whatsapp').single(),
+      sb.from('settings').select('value').eq('key', 'app_config').single(),
     ])
 
     const groupId = waSettings?.value?.eod_group_id
@@ -131,7 +143,9 @@ window.sendEODReport = async () => {
     ;(acts || []).forEach(a => items.push({ type: 'activity', title: a.title || '', subtype: a.type || '', account: a.contact_name || a.account || '', status: a.status || 'Open', raw: a }))
     ;(srs || []).forEach(s => items.push({ type: 'sr', title: s.title || '', sr_num: s.sr_number || '', issue_type: s.issue_type || '', account: s.customer_name || s.account || '', status: s.status || 'Open', raw: s }))
     items.sort((a, b) => new Date(a.raw.created_at) - new Date(b.raw.created_at))
-    const report = buildReport(items)
+    const defaultTemplate = `{header}\n\n{items}\n\n{summary}`
+    const template = appConfig?.value?.eod_template || defaultTemplate
+    const report = buildReport(items, template)
 
     if (!CFG.waBridgeUrl) throw new Error('WhatsApp bridge URL not configured')
 
