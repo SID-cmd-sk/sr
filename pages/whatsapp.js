@@ -14,6 +14,7 @@ export default {
     const sb = getSupabase()
     const me = appState.get('user')
     let waStatus = { connected: false }
+    let waConnecting = false
     let pollInterval = null
     let groupList = []
     let savedGroupId = null
@@ -77,8 +78,8 @@ export default {
             <div style="font-weight:700;font-size:.95rem">${label}</div>
             ${conn && waStatus.phone ? `<div style="font-size:.73rem;color:var(--text-2)">${escHtml(waStatus.phone)}</div>` : ''}
           </div>
-          <button class="btn ${conn ? 'btn-danger' : 'btn-primary'} btn-sm ml-auto" onclick="${conn ? `window.waDisconnect()` : `window.waConnect()`}">
-            ${conn ? 'Disconnect' : 'Connect / Get QR'}
+          <button class="btn ${conn ? 'btn-danger' : 'btn-primary'} btn-sm ml-auto" onclick="${conn ? `window.waDisconnect()` : `window.waConnect()`}" ${!conn && (waConnecting || connecting) ? 'disabled' : ''}>
+            ${!conn && (waConnecting || connecting) ? '<span class="btn-spinner"></span> Connecting…' : conn ? 'Disconnect' : 'Connect / Get QR'}
           </button>
         </div>
         ${waStatus.qr ? `<div style="text-align:center;padding:24px;background:var(--bg-elevated);border-radius:var(--r-lg);border:1px solid var(--border)">
@@ -146,9 +147,13 @@ export default {
     }
 
     window.waConnect = async () => {
-      if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl)) return
-      try { await fetch(`${CFG.waBridgeUrl}/connect`, { method: 'POST', signal: AbortSignal.timeout(5000) }) } catch {}
-      setTimeout(fetchStatus, 1500)
+      if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl) || waConnecting || waStatus.connected) return
+      waConnecting = true; renderWA()
+      try {
+        const r = await fetch(`${CFG.waBridgeUrl}/connect`, { method: 'POST', signal: AbortSignal.timeout(8000) })
+        if (!r.ok) throw new Error('Bridge returned ' + r.status)
+      } catch { /* bridge will reconnect on its own */ }
+      setTimeout(() => { waConnecting = false; fetchStatus() }, 2000)
     }
     window.waDisconnect = async () => {
       if (!CFG.waBridgeUrl || isLocalBridge(CFG.waBridgeUrl)) return

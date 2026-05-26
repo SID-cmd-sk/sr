@@ -17,24 +17,22 @@ function todayRange() {
 }
 
 function buildReport(items) {
-  const lines = [`📋 *EOD Report — ${fmtDate(new Date())}*`, '']
-  let idx = 1
+  const lines = [`📋 *${fmtDate(new Date())}*`, '']
   let pending = 0
 
-  items.forEach(item => {
+  items.forEach((item, i) => {
     if (item.type === 'activity') {
-      lines.push(`${idx}. ${item.title} — ${item.subtype || ''} ${item.account ? '— ' + item.account : ''}`)
+      lines.push(`${i + 1}. ${item.title} (${item.subtype || 'Activity'})`)
       if (item.status !== 'Done') pending++
     } else {
-      lines.push(`${idx}. ${item.sr_num} — ${item.title} — ${item.issue_type || ''} ${item.account ? '— ' + item.account : ''}`)
+      lines.push(`${i + 1}. ${item.title} — ${item.sr_num} (${item.issue_type || 'SR'})`)
       if (item.status !== 'Closed') pending++
     }
-    idx++
   })
 
+  const done = items.length - pending
   lines.push('')
-  lines.push(`*Total tasks:* ${items.length}`)
-  lines.push(`*Pending:* ${pending}`)
+  lines.push(`*${items.length} tasks* — ${done} done, ${pending} pending`)
   return lines.join('\n')
 }
 
