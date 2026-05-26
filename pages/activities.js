@@ -73,7 +73,7 @@ export default {
                 <div class="flex gap-1">
                   ${a.status !== 'Done' ? `<button class="btn btn-success btn-sm" onclick="updateActStatus('${a.id}','Done')">✓ Done</button>` : ''}
                   ${a.status === 'Open' ? `<button class="btn btn-ghost btn-sm" style="color:var(--text-3)" onclick="updateActStatus('${a.id}','Cancelled')">✕</button>` : ''}
-                  ${['Admin','Manager'].includes(me?.role) ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAct('${a.id}','${escHtml(a.activity_no)}')" title="Delete">🗑</button>` : ''}
+                  ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAct('${a.id}','${escHtml(a.activity_no)}')" title="Delete">Del</button>` : ''}
                 </div>
               </td>
             </tr>`).join('')}
