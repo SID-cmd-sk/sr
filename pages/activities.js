@@ -17,7 +17,7 @@ export default {
       const q = params.q ?? ''
 
       const [{ data: acts, error: actsErr }, { data: users }] = await Promise.all([
-        sb.from('activities').select('*,owner:users(name)').order('created_at', { ascending: false }).limit(100),
+        sb.from('activities').select('*,owner:users!activities_owner_id_fkey(name)').order('created_at', { ascending: false }).limit(100),
         sb.from('users').select('*').eq('status', 'active').order('name'),
       ])
 

@@ -60,7 +60,7 @@ async function loadPageModule(page, params) {
   container.innerHTML = skeletonPage()
 
   try {
-    const mod = await import(`/pages/${page}.js`)
+    const mod = await import(`../pages/${page}.js`)
     const fn = mod.default?.render || mod.render
     if (typeof fn === 'function') {
       await fn(container, params)
