@@ -5,14 +5,19 @@ import { auditLog } from './audit.js'
 
 const EMAIL_RELAY = 'http://localhost:3002/send-email'
 
-export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body }) {
+export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body, bcc }) {
   let res
   try {
+    const ac = new AbortController()
+    const tid = setTimeout(() => ac.abort(), 8000)
+    const payload = { host, port, username, password, to, from: fromAddr, subject, body }
+    if (bcc) payload.bcc = bcc
     res = await fetch(EMAIL_RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ host, port, username, password, to, from: fromAddr, subject, body }),
-    })
+      body: JSON.stringify(payload),
+      signal: ac.signal,
+    }).finally(() => clearTimeout(tid))
   } catch (e) {
     throw new Error('Email relay not running — please start start.bat on the server machine')
   }

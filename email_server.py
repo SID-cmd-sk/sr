@@ -44,9 +44,18 @@ def send_email():
     username = d['username']
     password = d['password']
     to       = d['to']
+    bcc      = d.get('bcc', '')
     from_addr = d.get('from', username)
     subject  = d['subject']
     body     = d['body']
+
+    envelope_to = [to]
+    if bcc:
+        # BCC addresses are added to envelope recipients but NOT to headers
+        for addr in bcc.split(','):
+            a = addr.strip()
+            if a:
+                envelope_to.append(a)
 
     try:
         # Build MIME message so From/To/Subject headers appear correctly
@@ -59,9 +68,10 @@ def send_email():
         ctx = ssl.create_default_context()
         with smtplib.SMTP_SSL(host, port, context=ctx) as server:
             server.login(username, password)
-            server.sendmail(username, to, msg.as_string())
+            server.sendmail(username, envelope_to, msg.as_string())
 
-        print(f'[Email] Sent to {to} | Subject: {subject}')
+        bcc_log = f' + BCC {bcc}' if bcc else ''
+        print(f'[Email] Sent to {to}{bcc_log} | Subject: {subject}')
         return jsonify(ok=True)
 
     except smtplib.SMTPAuthenticationError:

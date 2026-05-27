@@ -182,7 +182,8 @@ ${company}`
     username: profile.smtp_email,
     password: profile.smtp_password,
     to: newEmail,
-    from: `${profile.name} <${profile.smtp_email}>`,
+    from: profile.smtp_email,
+    bcc: profile.smtp_email,
     subject,
     body,
   })

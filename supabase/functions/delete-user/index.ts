@@ -36,25 +36,41 @@ async function main(req: Request): Promise<Response> {
       return json({ error: "Admin access required" }, 403)
     }
 
-    const dRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user_id}`, {
-      method: "DELETE",
-      headers: {
-        apikey: supabaseServiceKey,
-        Authorization: `Bearer ${supabaseServiceKey}`,
-      },
-    })
-    if (!dRes.ok && dRes.status !== 404) {
-      const d = await dRes.json()
-      return json({ error: d?.msg || "Failed to delete auth user" }, dRes.status)
+    const sk = {
+      apikey: supabaseServiceKey,
+      Authorization: `Bearer ${supabaseServiceKey}`,
     }
 
-    await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user_id}`, {
+    // Try auth admin API first
+    const dRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user_id}`, {
       method: "DELETE",
-      headers: {
-        apikey: supabaseServiceKey,
-        Authorization: `Bearer ${supabaseServiceKey}`,
-      },
+      headers: { ...sk, "Content-Type": "application/json" },
     })
+
+    if (!dRes.ok && dRes.status !== 404) {
+      const body = await dRes.text()
+      // FK violation — use RPC that cleans FK refs + deletes auth+public user atomically
+      if (body.includes("23503") || body.includes("foreign key")) {
+        const rpc = await fetch(`${supabaseUrl}/rest/v1/rpc/delete_auth_user`, {
+          method: "POST",
+          headers: { ...sk, "Content-Type": "application/json" },
+          body: JSON.stringify({ uid: user_id }),
+        })
+        if (!rpc.ok) {
+          const t = await rpc.text()
+          return json({ error: `RPC delete failed: ${t}` }, rpc.status)
+        }
+        // RPC already deleted public.users — skip separate delete
+      } else {
+        return json({ error: `Auth API ${dRes.status}: ${body}` }, dRes.status)
+      }
+    } else {
+      // Auth user deleted (or not found) — now delete public.users
+      await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user_id}`, {
+        method: "DELETE",
+        headers: sk,
+      })
+    }
 
     return json({ ok: true })
   } catch (e) {
