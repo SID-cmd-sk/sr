@@ -69,6 +69,7 @@ export default {
                     </select>
                     <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
                     ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" onclick="openChangePassword('${u.id}')">Password</button>` : ''}
+                    ${me?.role === 'Admin' && u.role !== 'Admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${escHtml(u.email)}',this)">Delete</button>` : ''}
                   </div>
                 </td>
               </tr>`).join('') ?? ''}
@@ -77,8 +78,27 @@ export default {
         </div>`
     } catch (e) {
       container.innerHTML = pageError('Could not load users', e.message, true, 'users')
-    }
   }
+}
+
+window.deleteUser = async (uid, email, btn) => {
+  if (!window.confirm(`Delete ${email}? This removes their login access permanently.`)) return
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>' }
+  try {
+    const r = await fetchWithTimeout(edgeUrl('delete-user'), {
+      method: 'POST',
+      headers: await authHeaders(),
+      body: JSON.stringify({ user_id: uid }),
+    })
+    const d = await r.json()
+    if (!r.ok) throw new Error(d.error || 'Delete failed')
+    window.toast('✓ User deleted permanently')
+    navigate('users')
+  } catch(e) {
+    if (btn) { btn.disabled = false; btn.textContent = 'Delete' }
+    window.toast('✗ ' + e.message, 'error')
+  }
+}
 }
 
 window.updateUserRole = async (uid, role) => {
