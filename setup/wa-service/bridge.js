@@ -62,8 +62,10 @@ function checkRateLimit(ip) {
 let sock           = null
 let qrDataUrl      = null
 let isConnected    = false
+let isConnecting   = false
 let phoneNumber    = null
 let reconnectTimer = null
+let reconnectAttempts = 0
 
 // ─── Express ─────────────────────────────────────────────────
 const app = express()
@@ -116,7 +118,7 @@ app.use((req, res, next) => {
 // ─── Routes ──────────────────────────────────────────────────
 
 app.get('/status', (req, res) => {
-  res.json({ ok: true, connected: isConnected, phone: phoneNumber, qr: qrDataUrl })
+  res.json({ ok: true, connected: isConnected, connecting: isConnecting, phone: phoneNumber, qr: qrDataUrl })
 })
 
 app.post('/connect', async (req, res) => {
@@ -257,17 +259,18 @@ async function startConnection() {
 
   console.log(`[WA] Baileys v${version.join('.')}`)
 
+  isConnecting = true
   sock = makeWASocket({
     version,
     auth:  state,
     logger: pino({ level: 'silent' }),
-    printQRInTerminal:            true,
     browser:                      ['SR Platform', 'Chrome', '120.0.0'],
-    connectTimeoutMs:             60000,
-    defaultQueryTimeoutMs:        30000,
-    keepAliveIntervalMs:          10000,
+    connectTimeoutMs:             120000,
+    defaultQueryTimeoutMs:        60000,
+    keepAliveIntervalMs:          25000,
     generateHighQualityLinkPreview: false,
     syncFullHistory:              false,
+    markOnlineOnConnect:          true,
   })
 
   sock.ev.on('creds.update', saveCreds)
@@ -283,7 +286,7 @@ async function startConnection() {
 
     if (connection === 'open') {
       console.log('[WA] ✓ Connected!')
-      isConnected = true; qrDataUrl = null
+      isConnected = true; isConnecting = false; qrDataUrl = null; reconnectAttempts = 0
       if (sock.user?.id) {
         phoneNumber = sock.user.id.split(':')[0].replace('@s.whatsapp.net', '')
         if (!phoneNumber.startsWith('+')) phoneNumber = '+' + phoneNumber
@@ -296,9 +299,14 @@ async function startConnection() {
       const shouldReconnect = reason !== DisconnectReason.loggedOut
       console.log(`[WA] Closed. Reason: ${reason}. Reconnect: ${shouldReconnect}`)
       if (shouldReconnect) {
+        reconnectAttempts++
+        const delay = Math.min(reconnectAttempts * 3000, 30000)
+        console.log(`[WA] Reconnecting in ${delay/1000}s (attempt ${reconnectAttempts})…`)
+        isConnecting = true
         clearTimeout(reconnectTimer)
-        reconnectTimer = setTimeout(() => startConnection(), 5000)
+        reconnectTimer = setTimeout(() => startConnection(), delay)
       } else {
+        isConnecting = false; reconnectAttempts = 0
         clearSessionFiles(); sock = null
       }
     }
