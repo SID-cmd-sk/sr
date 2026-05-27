@@ -100,7 +100,6 @@ window.deleteUser = async (uid, email, btn) => {
     window.toast('✗ ' + e.message, 'error')
   }
 }
-}
 
 window.updateUserRole = async (uid, role) => {
   const sb = getSupabase()
