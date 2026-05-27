@@ -78,6 +78,7 @@ export default {
         </div>`
     } catch (e) {
       container.innerHTML = pageError('Could not load users', e.message, true, 'users')
+    }
   }
 }
 
