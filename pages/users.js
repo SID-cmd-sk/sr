@@ -137,9 +137,9 @@ window.openInviteUser = () => {
 async function sendWelcomeEmail(newEmail, newName, newPw) {
   const sb = getSupabase()
   const me = appState.get('user')
-  if (!me) return false
+  if (!me) throw new Error('Not logged in')
   const { data: profile } = await sb.from('users').select('smtp_email,smtp_password,name').eq('id', me.id).single()
-  if (!profile?.smtp_email || !profile?.smtp_password) return false
+  if (!profile?.smtp_email || !profile?.smtp_password) throw new Error('Your SMTP email is not configured. Go to Settings → My Email first.')
   const company = 'SKS 3D'
   const subject = `Welcome to ${company} — Your Account Credentials`
   const body = `Hello ${newName},
@@ -156,21 +156,16 @@ For any questions or to change your password, please contact ${profile.name}.
 
 Best regards,
 ${company}`
-  try {
-    await smtpSend({
-      host: CFG.smtpHost,
-      port: CFG.smtpPort,
-      username: profile.smtp_email,
-      password: profile.smtp_password,
-      to: newEmail,
-      from: `${profile.name} <${profile.smtp_email}>`,
-      subject,
-      body,
-    })
-    return true
-  } catch (e) {
-    return false
-  }
+  await smtpSend({
+    host: CFG.smtpHost,
+    port: CFG.smtpPort,
+    username: profile.smtp_email,
+    password: profile.smtp_password,
+    to: newEmail,
+    from: `${profile.name} <${profile.smtp_email}>`,
+    subject,
+    body,
+  })
 }
 
 window.submitInvite = async () => {
@@ -194,9 +189,14 @@ window.submitInvite = async () => {
     const d = await r.json()
     if (!r.ok) throw new Error(d.error || 'User creation failed')
 
-    const emailed = await sendWelcomeEmail(email, name, pw)
-    window.closeModalForce()
-    window.toast(emailed ? '✓ User created — credentials sent via email' : '✓ User created — email notification skipped', 'success')
+    try {
+      await sendWelcomeEmail(email, name, pw)
+      window.closeModalForce()
+      window.toast('✓ User created — credentials sent via email', 'success')
+    } catch (emailErr) {
+      window.closeModalForce()
+      window.toast('✓ User created — but email failed: ' + emailErr.message, 'warning')
+    }
     navigate('users')
   } catch(e) {
     btn.disabled = false
