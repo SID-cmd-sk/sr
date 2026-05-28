@@ -69,7 +69,7 @@ export default {
                     </select>
                     <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
                     ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" onclick="openChangePassword('${u.id}')">Password</button>` : ''}
-                    ${me?.role === 'Admin' && u.role !== 'Admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${escHtml(u.email)}',this)">Delete</button>` : ''}
+                    ${me?.role === 'Admin' && u.role !== 'Admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${escHtml(u.email)}','${escHtml(u.name)}',this)">Delete</button>` : ''}
                   </div>
                 </td>
               </tr>`).join('') ?? ''}
@@ -82,7 +82,35 @@ export default {
   }
 }
 
-window.deleteUser = async (uid, email, btn) => {
+async function sendRemovalEmail(deletedEmail, deletedName) {
+  const sb = getSupabase()
+  const me = appState.get('user')
+  if (!me) return
+  const { data: profile } = await sb.from('users').select('smtp_email,smtp_password,name').eq('id', me.id).single()
+  if (!profile?.smtp_email || !profile?.smtp_password) return
+  await smtpSend({
+    host: CFG.smtpHost,
+    port: CFG.smtpPort,
+    username: profile.smtp_email,
+    password: profile.smtp_password,
+    to: deletedEmail,
+    from: profile.smtp_email,
+    saveToSent: true,
+    subject: 'Your account has been removed from the SR Platform',
+    body: `Hello ${deletedName || deletedEmail},
+
+Your account on the SR Platform has been removed by an administrator.
+
+You will no longer be able to log in to the platform.
+
+If you believe this was done in error, please contact your administrator.
+
+Best regards,
+${profile.name || 'SR Platform Admin'}`,
+  })
+}
+
+window.deleteUser = async (uid, email, name, btn) => {
   if (!window.confirm(`Delete ${email}? This removes their login access permanently.`)) return
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="btn-spinner"></span>' }
   try {
@@ -94,6 +122,9 @@ window.deleteUser = async (uid, email, btn) => {
     const d = await r.json()
     if (!r.ok) throw new Error(d.error || 'Delete failed')
     window.toast('✓ User deleted permanently')
+
+    try { await sendRemovalEmail(email, name || email) } catch {}
+
     navigate('users')
   } catch(e) {
     if (btn) { btn.disabled = false; btn.textContent = 'Delete' }
@@ -184,6 +215,7 @@ ${company}`
     to: newEmail,
     from: profile.smtp_email,
     bcc: profile.smtp_email,
+    saveToSent: true,
     subject,
     body,
   })

@@ -13,9 +13,14 @@ Requirements:
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import smtplib, ssl, json
+import smtplib, ssl, json, imaplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+
+# ── IMAP config (auto-detect from SMTP host) ─────────────────
+IMAP_MAP = {
+    'smtpout.secureserver.net': ('imapout.secureserver.net', 993),
+}
 
 app = Flask(__name__)
 CORS(app, origins=["https://sid-cmd-sk.github.io", "http://localhost", "http://127.0.0.1"])
@@ -39,39 +44,51 @@ def send_email():
     if missing:
         return jsonify(error=f'Missing fields: {", ".join(missing)}'), 400
 
-    host     = d['host']
-    port     = int(d['port'])
-    username = d['username']
-    password = d['password']
-    to       = d['to']
-    bcc      = d.get('bcc', '')
+    host      = d['host']
+    port      = int(d['port'])
+    username  = d['username']
+    password  = d['password']
+    to        = d['to']
+    bcc       = d.get('bcc', '')
     from_addr = d.get('from', username)
-    subject  = d['subject']
-    body     = d['body']
+    subject   = d['subject']
+    body      = d['body']
+    save_sent = d.get('save_to_sent', False)
 
     envelope_to = [to]
     if bcc:
-        # BCC addresses are added to envelope recipients but NOT to headers
         for addr in bcc.split(','):
             a = addr.strip()
             if a:
                 envelope_to.append(a)
 
     try:
-        # Build MIME message so From/To/Subject headers appear correctly
         msg = MIMEMultipart('alternative')
         msg['From']    = from_addr
         msg['To']      = to
         msg['Subject'] = subject
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        raw = msg.as_string()
 
         ctx = ssl.create_default_context()
         with smtplib.SMTP_SSL(host, port, context=ctx) as server:
             server.login(username, password)
-            server.sendmail(username, envelope_to, msg.as_string())
+            server.sendmail(username, envelope_to, raw)
 
-        bcc_log = f' + BCC {bcc}' if bcc else ''
-        print(f'[Email] Sent to {to}{bcc_log} | Subject: {subject}')
+        # ── Save to Sent folder via IMAP ──────────────────────
+        if save_sent and host in IMAP_MAP:
+            imap_host, imap_port = IMAP_MAP[host]
+            try:
+                imap = imaplib.IMAP4_SSL(imap_host, imap_port)
+                imap.login(username, password)
+                imap.append('Sent', '\\Seen', None, raw.encode('utf-8'))
+                imap.logout()
+                print(f'  [IMAP] Saved to Sent folder')
+            except Exception as imap_err:
+                print(f'  [IMAP] Failed to save to Sent: {imap_err}')
+
+        sent_log = f' + BCC {bcc}' if bcc else ''
+        print(f'[Email] Sent to {to}{sent_log} | Subject: {subject}')
         return jsonify(ok=True)
 
     except smtplib.SMTPAuthenticationError:

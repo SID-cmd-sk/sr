@@ -182,7 +182,7 @@ export default {
         if (el) { el.textContent = 'Sending test…'; el.style.color = 'var(--text-3)' }
         await sb.from('users').update({ smtp_email: em, smtp_password: pw }).eq('id', me.id)
         try {
-          await window.smtpSend({ host: CFG.smtpHost, port: CFG.smtpPort, username: em, password: pw, to: em, from: em, subject: 'SR Platform — Test Email', body: 'Your email credentials are configured correctly.' })
+          await window.smtpSend({ host: CFG.smtpHost, port: CFG.smtpPort, username: em, password: pw, to: em, from: em, saveToSent: true, subject: 'SR Platform — Test Email', body: 'Your email credentials are configured correctly.' })
           if (el) { el.textContent = `✓ Test sent to ${em}`; el.style.color = 'var(--green)' }
         } catch (e) {
           if (el) { el.textContent = '✗ Error: ' + e.message; el.style.color = 'var(--red)' }

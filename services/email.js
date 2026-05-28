@@ -5,13 +5,14 @@ import { auditLog } from './audit.js'
 
 const EMAIL_RELAY = 'http://localhost:3002/send-email'
 
-export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body, bcc }) {
+export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body, bcc, saveToSent }) {
   let res
   try {
     const ac = new AbortController()
     const tid = setTimeout(() => ac.abort(), 8000)
     const payload = { host, port, username, password, to, from: fromAddr, subject, body }
     if (bcc) payload.bcc = bcc
+    if (saveToSent) payload.save_to_sent = true
     res = await fetch(EMAIL_RELAY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
