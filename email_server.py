@@ -19,7 +19,7 @@ from email.mime.multipart import MIMEMultipart
 from email.utils import formatdate
 
 IMAP_MAP = {
-    'smtpout.secureserver.net': ('imapout.secureserver.net', 993),
+    'smtpout.secureserver.net': ('imap.secureserver.net', 993),
 }
 
 app = Flask(__name__)
