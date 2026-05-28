@@ -22,9 +22,6 @@ IMAP_MAP = {
     'smtpout.secureserver.net': ('imapout.secureserver.net', 993),
 }
 
-# Possible Sent folder names in order of likelihood
-SENT_FOLDER_NAMES = ['Sent', 'Sent Messages', 'INBOX.Sent', 'Sent Items']
-
 app = Flask(__name__)
 CORS(app, origins=["https://sid-cmd-sk.github.io", "http://localhost", "http://127.0.0.1"])
 
@@ -89,16 +86,33 @@ def send_email():
                 imap = imaplib.IMAP4_SSL(imap_host, imap_port)
                 imap.login(username, password)
                 saved = False
-                for folder in SENT_FOLDER_NAMES:
+                # List all folders and find one matching "sent"
+                typ, folder_list = imap.list()
+                sent_folder = None
+                sent_keywords = ['sent', 'envoyé', 'gesendet', 'enviado', 'inviato']
+                if typ == 'OK':
+                    for line in folder_list:
+                        decoded = line.decode(errors='replace')
+                        for kw in sent_keywords:
+                            if kw in decoded.lower():
+                                parts = decoded.split(' "/" ')
+                                if len(parts) > 1:
+                                    name = parts[-1].strip().strip('"')
+                                    if name.upper() != 'INBOX':
+                                        sent_folder = name
+                                        break
+                        if sent_folder:
+                            break
+                folder_name = sent_folder or 'Sent'
+                if sent_folder:
                     try:
-                        imap.append(folder, '\\Seen', None, raw.encode('utf-8'))
-                        print(f'  [IMAP] Saved to "{folder}"')
+                        imap.append(folder_name, '\\Seen', None, raw.encode('utf-8'))
+                        print(f'  [IMAP] Saved to "{folder_name}"')
                         saved = True
-                        break
-                    except Exception:
-                        continue
-                if not saved:
-                    imap_err_msg = 'Could not find Sent folder via IMAP'
+                    except Exception as e:
+                        imap_err_msg = f'IMAP append to "{folder_name}" failed: {e}'
+                else:
+                    imap_err_msg = f'No Sent folder found on IMAP server'
                 imap.logout()
             except Exception as imap_err:
                 imap_err_msg = str(imap_err)

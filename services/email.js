@@ -24,6 +24,7 @@ export async function smtpSend({ host, port, username, password, to, from: fromA
   }
   const json = await res.json().catch(() => ({}))
   if (!res.ok || json.error) throw new Error(json.error || `Relay error ${res.status}`)
+  if (json.imap_warning) console.warn('[Email] IMAP Sent folder:', json.imap_warning)
   return 'OK'
 }
 
