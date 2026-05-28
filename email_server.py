@@ -13,14 +13,17 @@ Requirements:
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import smtplib, ssl, json, imaplib
+import smtplib, ssl, json, imaplib, time, uuid
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formatdate
 
-# ── IMAP config (auto-detect from SMTP host) ─────────────────
 IMAP_MAP = {
     'smtpout.secureserver.net': ('imapout.secureserver.net', 993),
 }
+
+# Possible Sent folder names in order of likelihood
+SENT_FOLDER_NAMES = ['Sent', 'Sent Messages', 'INBOX.Sent', 'Sent Items']
 
 app = Flask(__name__)
 CORS(app, origins=["https://sid-cmd-sk.github.io", "http://localhost", "http://127.0.0.1"])
@@ -64,9 +67,12 @@ def send_email():
 
     try:
         msg = MIMEMultipart('alternative')
-        msg['From']    = from_addr
-        msg['To']      = to
-        msg['Subject'] = subject
+        msg['From']           = from_addr
+        msg['To']             = to
+        msg['Subject']        = subject
+        msg['Date']           = formatdate(localtime=True)
+        msg['Message-ID']     = f'<{uuid.uuid4().hex}@sks3d.com>'
+        msg['MIME-Version']   = '1.0'
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
         raw = msg.as_string()
 
@@ -76,20 +82,34 @@ def send_email():
             server.sendmail(username, envelope_to, raw)
 
         # ── Save to Sent folder via IMAP ──────────────────────
+        imap_err_msg = None
         if save_sent and host in IMAP_MAP:
             imap_host, imap_port = IMAP_MAP[host]
             try:
                 imap = imaplib.IMAP4_SSL(imap_host, imap_port)
                 imap.login(username, password)
-                imap.append('Sent', '\\Seen', None, raw.encode('utf-8'))
+                saved = False
+                for folder in SENT_FOLDER_NAMES:
+                    try:
+                        imap.append(folder, '\\Seen', None, raw.encode('utf-8'))
+                        print(f'  [IMAP] Saved to "{folder}"')
+                        saved = True
+                        break
+                    except Exception:
+                        continue
+                if not saved:
+                    imap_err_msg = 'Could not find Sent folder via IMAP'
                 imap.logout()
-                print(f'  [IMAP] Saved to Sent folder')
             except Exception as imap_err:
-                print(f'  [IMAP] Failed to save to Sent: {imap_err}')
+                imap_err_msg = str(imap_err)
+                print(f'  [IMAP] Failed: {imap_err}')
 
         sent_log = f' + BCC {bcc}' if bcc else ''
         print(f'[Email] Sent to {to}{sent_log} | Subject: {subject}')
-        return jsonify(ok=True)
+        resp = {'ok': True}
+        if imap_err_msg:
+            resp['imap_warning'] = imap_err_msg
+        return jsonify(resp)
 
     except smtplib.SMTPAuthenticationError:
         return jsonify(error='Authentication failed — check email and password in Settings'), 401

@@ -214,7 +214,6 @@ ${company}`
     password: profile.smtp_password,
     to: newEmail,
     from: profile.smtp_email,
-    bcc: profile.smtp_email,
     saveToSent: true,
     subject,
     body,
