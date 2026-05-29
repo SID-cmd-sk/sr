@@ -1,0 +1,1 @@
+This software and its source code are proprietary and confidential. Unauthorized copying, modification, distribution, or use is strictly prohibited without prior written permission from the copyright holder.
