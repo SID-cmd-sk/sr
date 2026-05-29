@@ -1,23 +1,26 @@
 <!DOCTYPE html>
-<html><head>
+<html lang="en"><head>
 <meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
 <title>SR Platform</title>
 <style>
-body { margin:0; background:#070B14; color:#F0F4FF; font-family:system-ui,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; text-align:center }
-.card { background:#131929; border:1px solid rgba(255,255,255,.08); border-radius:14px; padding:32px; max-width:440px }
-h2 { margin:0 0 8px; font-size:1.2rem }
-p { color:#8B95B0; font-size:.85rem; margin:0 0 20px; line-height:1.6 }
-.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; background:#3B82F6; color:#fff; border:none; text-decoration:none }
-.btn:hover { background:#2563EB }
-.spinner { width:16px; height:16px; border:2px solid rgba(255,255,255,.25); border-top-color:#fff; border-radius:50%; animation:spin .65s linear infinite; display:inline-block; margin-bottom:16px }
+body { margin:0; background:#060d1a; color:#F0F4FF; font-family:'Inter',system-ui,sans-serif; display:flex; align-items:center; justify-content:center; min-height:100vh; padding:20px; text-align:center; -webkit-font-smoothing:antialiased }
+.card { background:rgba(18,25,46,.85); border:1px solid rgba(255,255,255,.06); border-radius:20px; padding:40px; max-width:420px; box-shadow:0 24px 64px rgba(0,0,0,.5),0 0 0 1px rgba(255,255,255,.03) inset; backdrop-filter:blur(24px); animation:fadeInUp .4s ease both }
+h2 { margin:0 0 8px; font-family:'Space Grotesk',sans-serif; font-size:1.2rem; font-weight:600; letter-spacing:-.02em }
+p { color:#8B95B0; font-size:.8rem; margin:0 0 20px; line-height:1.6 }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 16px; border-radius:8px; font-size:.85rem; font-weight:600; cursor:pointer; background:#3B82F6; color:#fff; border:none; text-decoration:none; transition:all .2s ease }
+.btn:hover { background:#2563EB; transform:translateY(-1px) }
+.spinner { width:18px; height:18px; border:2px solid rgba(255,255,255,.2); border-top-color:#fff; border-radius:50%; animation:spin .65s linear infinite; display:inline-block; margin-bottom:20px }
 @keyframes spin { to{transform:rotate(360deg)} }
+@keyframes fadeInUp { from{opacity:0;transform:translateY(16px)} to{opacity:1;transform:translateY(0)} }
 </style>
 </head><body>
-<div class="card">
+<div class="card" style="animation:fadeInUp .5s ease both">
   <div class="spinner"></div>
-  <h2>Redirecting to SR Platform...</h2>
+  <h2>Redirecting to SR Platform</h2>
   <p>Please wait while we restore your session</p>
 </div>
 <script>

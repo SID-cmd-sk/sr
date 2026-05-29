@@ -40,11 +40,11 @@ export default {
 
       const panels = {
         email: `<div class="card" style="max-width:560px">
-          <div class="section-title mb-2">My Email Credentials</div>
-          <p style="color:var(--text-2);font-size:.8rem;margin-bottom:20px;line-height:1.6">Emails are sent from your own mailbox using the company mail server below. Each user manages their own credentials.</p>
-          <div style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;margin-bottom:20px">
+          <div class="section-title mb-3">My Email Credentials</div>
+          <p class="text-muted mb-4" style="line-height:1.6">Emails are sent from your own mailbox using the company mail server below. Each user manages their own credentials.</p>
+          <div class="card-sm mb-4">
             <div class="label-xs mb-2">Company Mail Server (fixed)</div>
-            <div class="flex gap-4 flex-wrap" style="font-size:.78rem;font-family:var(--mono);color:var(--text-2)">
+            <div class="flex gap-4 flex-wrap mono" style="font-size:.78rem;color:var(--text-2)">
               <span>Host: <strong style="color:var(--text-1)">smtpout.secureserver.net</strong></span>
               <span>Port: <strong style="color:var(--text-1)">465</strong></span>
               <span>SSL: <strong style="color:var(--green)">On</strong></span>

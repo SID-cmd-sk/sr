@@ -54,17 +54,16 @@ export default {
                 <div class="form-group">
                   <label class="form-label">${escHtml(f.label)}</label>
                   <textarea class="form-textarea config-field" data-key="${f.key}" rows="${Math.max(val.split('\n').length + 1, 4)}" style="font-family:var(--mono);font-size:.82rem" placeholder="${escHtml(f.placeholder)}">${escHtml(val)}</textarea>
-                  <p style="font-size:.72rem;color:var(--text-3);margin-top:3px">One item per line. Changes apply after save.</p>
+                  <div class="form-hint">One item per line. Changes apply after save.</div>
                 </div>`
             }).join('')}
           </div>
         </div>
-        <div class="card" style="margin-top:14px">
-          <div class="card-header">
-            <div class="card-title">EOD Report Template</div>
-            <button class="btn btn-ghost btn-sm" onclick="toggleEodInfo()" title="Placeholder reference" style="padding:4px 8px">?</button>
+        <div class="card">
+          <div class="flex items-center justify-between mb-4">
+            <div class="section-title">EOD Report Template</div>
+            <button class="btn btn-ghost btn-sm btn-icon" onclick="toggleEodInfo()" title="Placeholder reference">?</button>
           </div>
-          <div class="card-body">
             <div id="eod-info-table" style="display:none;margin-bottom:14px;font-size:.78rem;background:var(--bg-elevated);border-radius:var(--r);padding:12px;overflow-x:auto">
               <table style="width:100%;border-collapse:collapse">
                 <tr style="border-bottom:1px solid var(--border)"><th style="text-align:left;padding:4px 8px;color:var(--text-2)">Placeholder</th><th style="text-align:left;padding:4px 8px;color:var(--text-2)">Description</th><th style="text-align:left;padding:4px 8px;color:var(--text-2)">Example</th></tr>
@@ -101,11 +100,9 @@ export default {
             <textarea class="form-textarea config-field" data-key="eod_template" rows="6" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_template || EOD_DEFAULT_TEMPLATE)}</textarea>
           </div>
         </div>
-        <div class="card" style="margin-top:14px">
-          <div class="card-header">
-            <div class="card-title">EOD Item Formats</div>
-          </div>
-          <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+        <div class="card">
+          <div class="section-title mb-4">EOD Item Formats</div>
+          <div class="flex-col gap-4">
             <div class="form-group">
               <label class="form-label">Activity line format</label>
               <textarea class="form-textarea config-field" data-key="eod_item_fmt_activity" rows="2" style="font-family:var(--mono);font-size:.82rem">${escHtml(cfg.eod_item_fmt_activity || '{i}. {title} ({type})')}</textarea>

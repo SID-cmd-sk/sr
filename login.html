@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SR Platform — Sign In</title>
 <link rel="icon" href="data:,"/>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
@@ -21,10 +21,12 @@
   --text-3:  #4A5268;
   --red:     #EF4444;
   --green:   #10B981;
-  --font:    'Plus Jakarta Sans', system-ui, sans-serif;
+  --font:    'Inter', system-ui, sans-serif;
+  --font-display: 'Space Grotesk', sans-serif;
   --r:       8px;
   --r-lg:    14px;
   --r-xl:    18px;
+  --r-2xl:   24px;
   --ease:    cubic-bezier(0.16, 1, 0.3, 1);
 }
 html { font-size: 14px }
@@ -138,9 +140,10 @@ body::after {
   pointer-events: none;
 }
 .brand-name {
+  font-family: var(--font-display);
   font-size: 1.6rem;
-  font-weight: 800;
-  letter-spacing: -0.03em;
+  font-weight: 700;
+  letter-spacing: -0.04em;
   background: linear-gradient(135deg, #F0F4FF 30%, #8B95B0);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

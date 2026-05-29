@@ -28,8 +28,8 @@ export async function render(container, params) {
     container.innerHTML = `
       <div class="page-header">
         <div>
-          <div class="page-title">Good ${greeting()}, ${user?.name?.split(' ')[0]??''} 👋</div>
-          <div class="page-subtitle">Here's what's happening across your workflows today</div>
+          <div class="page-title">Good ${greeting()}, ${user?.name?.split(' ')[0]??''}</div>
+          <div class="page-subtitle">Your workflows at a glance</div>
         </div>
         ${user?.role !== 'Viewer' ? `<div class="page-header-actions">
           <button class="btn btn-primary" onclick="navigate('sr-new')">

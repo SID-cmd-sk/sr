@@ -71,9 +71,16 @@ export default {
               <td class="mono" style="font-size:.7rem;color:var(--text-3)">${a.due_date ? fmtDateS(a.due_date) : '—'}</td>
               <td>
                 <div class="flex gap-1">
-                  ${a.status !== 'Done' ? `<button class="btn btn-success btn-sm" onclick="updateActStatus('${a.id}','Done')">✓ Done</button>` : ''}
-                  ${a.status === 'Open' ? `<button class="btn btn-ghost btn-sm" style="color:var(--text-3)" onclick="updateActStatus('${a.id}','Cancelled')">✕</button>` : ''}
-                  ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" style="color:var(--red)" onclick="deleteAct('${a.id}','${escHtml(a.activity_no)}')" title="Delete">Del</button>` : ''}
+                  ${a.status !== 'Done' ? `<button class="btn btn-success btn-sm" onclick="updateActStatus('${a.id}','Done')">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6L9 17l-5-5"/></svg>
+                    Done
+                  </button>` : ''}
+                  ${a.status === 'Open' ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="updateActStatus('${a.id}','Cancelled')" title="Cancel">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                  </button>` : ''}
+                  ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm btn-icon" onclick="deleteAct('${a.id}','${escHtml(a.activity_no)}')" title="Delete" style="color:var(--red)">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                  </button>` : ''}
                 </div>
               </td>
             </tr>`).join('')}

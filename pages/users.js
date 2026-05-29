@@ -48,7 +48,10 @@ export default {
             <div class="page-subtitle">${users?.length ?? 0} team members</div>
           </div>
           <div class="page-header-actions">
-            <button class="btn btn-primary" onclick="openInviteUser()">+ Invite User</button>
+            <button class="btn btn-primary" onclick="openInviteUser()">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 5v14M5 12h14"/></svg>
+              Invite User
+            </button>
           </div>
         </div>
         <div class="card" style="padding:0">
@@ -67,9 +70,18 @@ export default {
                     <select class="form-select" style="width:auto;padding:5px 8px;font-size:.75rem" onchange="updateUserRole('${u.id}',this.value)">
                       ${ROLES.map(r => `<option value="${r}" ${r === u.role ? 'selected' : ''}>${r}</option>`).join('')}
                     </select>
-                    <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')">${u.status === 'active' ? 'Disable' : 'Enable'}</button>
-                    ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" onclick="openChangePassword('${u.id}')">Password</button>` : ''}
-                    ${me?.role === 'Admin' && u.role !== 'Admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${escHtml(u.email)}','${escHtml(u.name)}',this)">Delete</button>` : ''}
+                    <button class="btn btn-ghost btn-sm" onclick="toggleUserStatus('${u.id}','${u.status}')">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                      ${u.status === 'active' ? 'Disable' : 'Enable'}
+                    </button>
+                    ${me?.role === 'Admin' ? `<button class="btn btn-ghost btn-sm" onclick="openChangePassword('${u.id}')">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                      Password
+                    </button>` : ''}
+                    ${me?.role === 'Admin' && u.role !== 'Admin' ? `<button class="btn btn-danger btn-sm" onclick="deleteUser('${u.id}','${escHtml(u.email)}','${escHtml(u.name)}',this)">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+                      Delete
+                    </button>` : ''}
                   </div>
                 </td>
               </tr>`).join('') ?? ''}

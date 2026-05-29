@@ -29,10 +29,10 @@ async function render(container) {
         <button class="btn btn-ghost" onclick="navigate('sr')">← Cancel</button>
       </div>
       <div style="max-width:740px">
-        <div id="sr-new-error" class="hidden"></div>
+        <div id="sr-new-error" class="alert alert-error hidden mb-4"></div>
         <div class="card mb-4">
           <div class="section-title mb-4">SR Information</div>
-          <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="flex-col gap-4">
             <div class="form-group">
               <label class="form-label req">Title / Summary</label>
               <input class="form-input" id="n-title" placeholder="Brief description of the issue…"/>
@@ -60,7 +60,7 @@ async function render(container) {
         </div>
         <div class="card mb-4">
           <div class="section-title mb-4">Customer Details</div>
-          <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="flex-col gap-4">
             <div class="form-group">
               <label class="form-label">Account / Company</label>
               <input class="form-input" id="n-account" placeholder="Company or account name"/>
@@ -82,8 +82,8 @@ async function render(container) {
           </div>
         </div>
         <div class="card mb-5">
-          <div class="section-title mb-4">Assignment & Route</div>
-          <div style="display:flex;flex-direction:column;gap:16px">
+          <div class="section-title mb-4">Assignment &amp; Route</div>
+          <div class="flex-col gap-4">
             <div class="form-group">
               <label class="form-label req">Owner</label>
               ${canChooseOwner
@@ -127,11 +127,11 @@ async function submitNewSR() {
   const errEl = document.getElementById('sr-new-error')
   const btn   = document.getElementById('n-submit')
   if (!title || !desc) {
-    errEl.className = 'alert alert-error mb-4'
+    errEl.classList.remove('hidden')
     errEl.textContent = 'Title and description are required.'
     return
   }
-  errEl.className = 'hidden'
+  errEl.classList.add('hidden')
   btn.disabled = true
   btn.innerHTML = '<span class="btn-spinner"></span> Creating…'
   const canChooseOwner = ['Admin','Manager'].includes(me?.role)
@@ -150,8 +150,8 @@ async function submitNewSR() {
   }).select().single()
   if (error) {
     btn.disabled = false
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>\n            Create Service Request'
-    errEl.className='alert alert-error mb-4'
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Create Service Request'
+    errEl.classList.remove('hidden')
     errEl.textContent=error.message
     return
   }
