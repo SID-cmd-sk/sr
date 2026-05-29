@@ -485,6 +485,7 @@ body::before {
     </nav>
     <div class="sidebar-footer">
       <div class="sidebar-user-info" id="sidebar-user"></div>
+      <div style="padding:4px 10px 2px;font-size:.65rem;color:var(--text-3);line-height:1.5">&copy; Sidharth &middot; <a href="#" onclick="showPrivacyPolicy();return false" style="color:var(--text-3);text-decoration:underline">Privacy</a></div>
       <button class="sidebar-link" onclick="window.doLogout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Sign Out
@@ -674,6 +675,27 @@ appState.on('user', (user) => {
 })
 
 
+
+window.showPrivacyPolicy = function() {
+  const root = document.getElementById('modal-root')
+  root.innerHTML = `<div class="modal-overlay" onclick="if(event.target===this)closeModalForce()">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Privacy Policy</div>
+        <button class="btn btn-ghost btn-icon btn-sm" onclick="closeModalForce()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg></button>
+      </div>
+      <div class="modal-body" style="font-size:.83rem;color:var(--text-2);line-height:1.7">
+        <p><strong>Data Collection:</strong> This application stores your name, email address, and authentication credentials via Supabase Auth. SR and activity data you enter is stored in a cloud database.</p>
+        <p><strong>Email &amp; WhatsApp:</strong> Your SMTP credentials (email, password) are stored encrypted in the database and used only to send emails on your behalf. WhatsApp connection data is stored locally.</p>
+        <p><strong>Third Parties:</strong> We use Supabase (cloud database), Google Workspace (Drive, Sheets), and GoDaddy email services. Each service handles data per their own privacy policy.</p>
+        <p><strong>Data Retention:</strong> Your data remains until you or an admin deletes your account. Deletion removes your data from all services where possible.</p>
+        <p><strong>Contact:</strong> For privacy concerns, contact the system administrator.</p>
+        <p style="margin-top:16px;font-size:.7rem;color:var(--text-3)">&copy; Sidharth. All rights reserved.</p>
+      </div>
+    </div>
+  </div>`
+  root.classList.add('active')
+}
 
 window.addEventListener('load', bootApp)
 </script>
