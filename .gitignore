@@ -35,6 +35,10 @@ test-results/
 # Reports
 reports/
 
+# Supabase temp
+supabase/.temp/
+supabase/.branches
+
 # Duplicate setup
 /setup/setup/
 
