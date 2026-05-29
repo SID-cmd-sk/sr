@@ -26,7 +26,10 @@ export async function doLogin(email, pass) {
   )
   if (error) throw error
   const user = data?.user || data?.session?.user
-  if (user) await loadProfile(user.id)
+  if (user) {
+    const jwt = data?.session?.access_token
+    await loadProfile(user.id, jwt)
+  }
   return user
 }
 
@@ -48,12 +51,23 @@ export async function doLogout() {
   appState.set('user', null)
 }
 
-export async function loadProfile(uid) {
+export async function loadProfile(uid, jwt) {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase not initialized')
-  const { data, error } = await withTimeout(sb.from('users').select('*').eq('id', uid).single(), 10000, 'Profile load timed out')
-  if (error) throw error
-  if (!data) throw new Error('User profile not found')
+  let data
+  if (jwt) {
+    const c = window.APP_CONFIG
+    const res = await withTimeout(fetch(`${c.SUPABASE_URL}/rest/v1/users?id=eq.${uid}&select=*`, { headers: { apikey: c.SUPABASE_ANON, Authorization: `Bearer ${jwt}` } }), 10000, 'Profile load timed out')
+    if (!res.ok) throw new Error(`Profile fetch failed (${res.status})`)
+    const rows = await res.json()
+    if (!rows?.length) throw new Error('User profile not found')
+    data = rows[0]
+  } else {
+    const r = await withTimeout(sb.from('users').select('*').eq('id', uid).single(), 10000, 'Profile load timed out')
+    if (r.error) throw r.error
+    if (!r.data) throw new Error('User profile not found')
+    data = r.data
+  }
   appState.set('user', data)
   return data
 }
