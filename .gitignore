@@ -26,11 +26,6 @@ test-results/
 # Editor
 .vscode/
 
-# AI Internal (NEVER commit or deploy)
-.ai-internal/
-.ai-internal/*
-.ai-system/
-.ai-system/*
 
 # Reports
 reports/
