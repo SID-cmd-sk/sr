@@ -1,4 +1,4 @@
-import { getSupabase } from '../services/supabase.js'
+import { getSupabase, withTimeout } from '../services/supabase.js'
 
 export const CFG = {
   supabaseUrl: null, supabaseAnon: null,
@@ -32,8 +32,8 @@ export async function loadRuntimeConfig() {
   try {
     const sb = getSupabase()
     const [{ data:drv }, { data:wa }] = await Promise.all([
-      sb.from('settings').select('value').eq('key','drive').single(),
-      sb.from('settings').select('value').eq('key','whatsapp').single(),
+      withTimeout(sb.from('settings').select('value').eq('key','drive').single(), 8000, 'settings.drive timeout'),
+      withTimeout(sb.from('settings').select('value').eq('key','whatsapp').single(), 8000, 'settings.whatsapp timeout'),
     ])
     if (drv?.value) {
       if (drv.value.apps_script_url) CFG.appsScriptUrl = drv.value.apps_script_url

@@ -592,19 +592,8 @@ async function bootApp() {
     showAuth()
   }
 
-  unsubscribeAuth = getSupabase().auth.onAuthStateChange(async (event, session) => {
-    if (session?.user) {
-      try {
-        await loadProfile(session.user.id)
-        await loadRuntimeConfig()
-        showApp()
-        if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN') {
-          initRouter()
-        }
-      } catch(e) {
-        showAuth()
-      }
-    } else if (event === 'SIGNED_OUT') {
+  unsubscribeAuth = getSupabase().auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT') {
       appState.set('user', null)
       showAuth()
     }

@@ -51,7 +51,7 @@ export async function doLogout() {
 export async function loadProfile(uid) {
   const sb = getSupabase()
   if (!sb) throw new Error('Supabase not initialized')
-  const { data, error } = await sb.from('users').select('*').eq('id', uid).single()
+  const { data, error } = await withTimeout(sb.from('users').select('*').eq('id', uid).single(), 10000, 'Profile load timed out')
   if (error) throw error
   if (!data) throw new Error('User profile not found')
   appState.set('user', data)
