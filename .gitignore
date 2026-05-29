@@ -32,18 +32,8 @@ test-results/
 # Reports
 reports/
 
-# WhatsApp auth
-/setup/wa-service/wa_auth
-/setup/wa-service
-
-# Local server
-/local/
-
 # Duplicate setup
 /setup/setup/
-
-# Credential log
-/detailed log.txt
 
 # Compiled binaries
 *.exe
