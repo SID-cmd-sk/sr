@@ -23,9 +23,9 @@ export function closeModal(e) {
   const overlay = document.querySelector('.modal-overlay')
   if (overlay) {
     overlay.style.opacity = '0'
-    overlay.querySelector('.modal')?.style.setProperty('transform', 'scale(.96)')
+    overlay.querySelector('.modal')?.style.setProperty('transform', 'scale(.92)')
     overlay.style.transition = 'opacity .15s, backdrop-filter .15s'
-    setTimeout(() => overlay.remove(), 160)
+    setTimeout(() => overlay.remove(), 180)
   }
   document.removeEventListener('keydown', onKey)
 }
