@@ -23,6 +23,9 @@ playwright-report/
 screenshots/
 test-results/
 
+# Editor
+.vscode/
+
 # AI Internal (NEVER commit or deploy)
 .ai-internal/
 .ai-internal/*
