@@ -4,11 +4,10 @@ color 0A
 
 echo.
 echo  ================================================
-echo   SR Platform — Starting Local
+echo   SR Platform - Starting Local
 echo  ================================================
 echo.
 
-:: ── Check Python ─────────────────────────────────
 python --version >nul 2>&1
 if errorlevel 1 (
     echo  [ERROR] Python not found. Install from https://python.org
@@ -16,7 +15,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: ── Check Node ───────────────────────────────────
 node --version >nul 2>&1
 if errorlevel 1 (
     echo  [ERROR] Node.js not found. Install from https://nodejs.org
@@ -24,7 +22,6 @@ if errorlevel 1 (
     exit /b 1
 )
 
-:: ── Install Python deps if needed ────────────────
 echo  [Setup] Checking Python dependencies...
 pip show flask >nul 2>&1
 if errorlevel 1 (
@@ -32,31 +29,29 @@ if errorlevel 1 (
     pip install flask flask-cors --quiet
 )
 
-:: ── Install Node deps if needed ──────────────────
-if not exist "setup\wa-service\node_modules" (
+if not exist "local\wa-service\node_modules" (
     echo  [Setup] Installing WhatsApp bridge dependencies...
-    cd setup\wa-service
-    npm install --silent
+    cd local\wa-service
+    call npm install --silent
     cd ..\..
 )
 
 echo.
 echo  [1/2] Starting Email Relay on port 3002...
-start "SR Email Server" cmd /k "title SR Email Server && python email_server.py"
+start "SR Email Server" cmd /c "title SR Email Server && python local\email_server.py"
 
 timeout /t 2 /nobreak >nul
 
 echo  [2/2] Starting WhatsApp Bridge on port 3001...
-start "SR WhatsApp Bridge" cmd /k "title SR WhatsApp Bridge && cd setup\wa-service && node bridge.js"
+start "SR WhatsApp Bridge" cmd /c "title SR WhatsApp Bridge && cd local\wa-service && node bridge.js"
 
 echo.
 echo  ================================================
 echo   Both services started!
-echo   Email Relay  →  http://localhost:3002
-echo   WA Bridge    →  http://localhost:3001
+echo   Email Relay  ->  http://localhost:3002
+echo   WA Bridge    ->  http://localhost:3001
 echo.
 echo   Keep this window open or close it safely.
-echo   To stop services, close their windows.
 echo  ================================================
 echo.
 pause

@@ -40,7 +40,6 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Background effects */
 body::before {
   content: '';
   position: fixed;
@@ -64,7 +63,6 @@ body::after {
   z-index: 0;
 }
 
-/* Noise overlay */
 .noise {
   position: fixed;
   inset: 0;
@@ -74,7 +72,6 @@ body::after {
   opacity: 0.5;
 }
 
-/* Floating orbs */
 .orb {
   position: fixed;
   border-radius: 50%;
@@ -101,7 +98,6 @@ body::after {
   66%       { transform: translate(-10px,15px) scale(0.97) }
 }
 
-/* Wrap */
 .wrap {
   position: relative;
   z-index: 2;
@@ -114,7 +110,6 @@ body::after {
   to   { opacity: 1; transform: translateY(0) }
 }
 
-/* Brand */
 .brand {
   text-align: center;
   margin-bottom: 36px;
@@ -161,7 +156,6 @@ body::after {
   display: block;
 }
 
-/* Card */
 .card {
   background: var(--card);
   border: 1px solid var(--border);
@@ -191,7 +185,6 @@ body::after {
   color: var(--text-1);
 }
 
-/* Form */
 .form-group { margin-bottom: 14px }
 .label {
   display: block;
@@ -223,7 +216,6 @@ body::after {
 }
 .input:focus::placeholder { color: var(--text-3); opacity: 0.6 }
 
-/* Input group with icon */
 .input-wrap { position: relative }
 .input-icon {
   position: absolute;
@@ -237,7 +229,6 @@ body::after {
 .input-wrap:focus-within .input-icon { color: var(--accent) }
 .input-wrap .input { padding-left: 38px }
 
-/* Error */
 .err {
   background: rgba(239,68,68,0.08);
   border: 1px solid rgba(239,68,68,0.2);
@@ -250,7 +241,6 @@ body::after {
   line-height: 1.5;
 }
 
-/* Button */
 .btn {
   display: flex;
   align-items: center;
@@ -297,7 +287,6 @@ body::after {
 }
 @keyframes spin { to { transform: rotate(360deg) } }
 
-/* Divider */
 .divider {
   display: flex;
   align-items: center;
@@ -307,7 +296,6 @@ body::after {
 .divider-line { flex: 1; height: 1px; background: rgba(255,255,255,0.06) }
 .divider-text { font-size: 0.7rem; color: var(--text-3) }
 
-/* Footer */
 .footer {
   text-align: center;
   margin-top: 22px;
@@ -316,7 +304,6 @@ body::after {
   line-height: 1.7;
 }
 
-/* Version badge */
 .version-badge {
   display: inline-flex;
   align-items: center;
@@ -413,7 +400,6 @@ async function initSupabase() {
       auth: { persistSession:true, autoRefreshToken:true, detectSessionInUrl:true }
     })
   } catch(e) {
-    console.error('Init error:', e)
     document.body.innerHTML = `<div style="color:#EF4444;padding:40px;text-align:center;font-family:sans-serif">
       <strong>Configuration Error</strong><br/><small>${e.message}</small>
     </div>`
@@ -431,13 +417,12 @@ async function checkExistingSession() {
     if (!sb) return
     const { data } = await withTimeout(sb.auth.getSession(), 5000, 'Session check timeout')
     if (data.session) window.location.href = 'app.html'
-  } catch(e) { console.error('Session check error:', e) }
+  } catch(e) {}
 }
 
 window.addEventListener('load', async () => {
   await initSupabase()
   await checkExistingSession()
-  // Focus email field
   setTimeout(() => document.getElementById('email')?.focus(), 100)
 })
 
@@ -485,7 +470,6 @@ function showErr(msg) {
   const e = document.getElementById('err')
   e.textContent = msg
   e.style.display = 'block'
-  // Shake animation
   e.style.animation = 'none'
   requestAnimationFrame(() => {
     e.style.animation = 'shake 0.4s ease'
@@ -496,7 +480,6 @@ document.addEventListener('keydown', e => {
   if (e.key === 'Enter') doLogin()
 })
 
-// Add shake animation
 const style = document.createElement('style')
 style.textContent = `
 @keyframes shake {

@@ -1,31 +1,35 @@
 import { getSupabase } from './supabase.js'
-import { CFG } from '../utils/config.js'
 import { appState } from './app-state.js'
 import { auditLog } from './audit.js'
+import { CFG } from '../utils/config.js'
 
-const EMAIL_RELAY = 'http://localhost:3002/send-email'
+function edgeUrl(name) {
+  return `${CFG.supabaseUrl}/functions/v1/${name}`
+}
 
-export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body, bcc, saveToSent }) {
-  let res
+async function authHeaders() {
+  const sb = getSupabase()
+  const { data } = await sb?.auth?.getSession() || { data: null }
+  const token = data?.session?.access_token || ''
+  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+}
+
+export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body }) {
+  const ac = new AbortController()
+  const tid = setTimeout(() => ac.abort(), 15000)
   try {
-    const ac = new AbortController()
-    const tid = setTimeout(() => ac.abort(), 8000)
-    const payload = { host, port, username, password, to, from: fromAddr, subject, body }
-    if (bcc) payload.bcc = bcc
-    if (saveToSent) payload.save_to_sent = true
-    res = await fetch(EMAIL_RELAY, {
+    const res = await fetch(edgeUrl('send-email'), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      headers: await authHeaders(),
+      body: JSON.stringify({ host, port, username, password, to, from: fromAddr || username, subject, body }),
       signal: ac.signal,
-    }).finally(() => clearTimeout(tid))
-  } catch (e) {
-    throw new Error('Email relay not running — please start start.bat on the server machine')
+    })
+    const json = await res.json().catch(() => ({}))
+    if (!res.ok || json.error) throw new Error(json.error || `Email error ${res.status}`)
+    return 'OK'
+  } finally {
+    clearTimeout(tid)
   }
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok || json.error) throw new Error(json.error || `Relay error ${res.status}`)
-  if (json.imap_warning) console.warn('[Email] IMAP Sent folder:', json.imap_warning)
-  return 'OK'
 }
 
 export function replacePlaceholders(str, sr, senderName, extra = {}) {

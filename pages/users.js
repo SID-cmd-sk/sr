@@ -95,7 +95,6 @@ async function sendRemovalEmail(deletedEmail, deletedName) {
     password: profile.smtp_password,
     to: deletedEmail,
     from: profile.smtp_email,
-    saveToSent: true,
     subject: 'Your account has been removed from the SR Platform',
     body: `Hello ${deletedName || deletedEmail},
 
@@ -214,7 +213,6 @@ ${company}`
     password: profile.smtp_password,
     to: newEmail,
     from: profile.smtp_email,
-    saveToSent: true,
     subject,
     body,
   })

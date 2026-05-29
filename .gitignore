@@ -45,6 +45,13 @@ reports/
 # Credential log
 /detailed log.txt
 
+# Compiled binaries
+*.exe
+
+# Python cache
+__pycache__/
+*.pyc
+
 # OS files
 .DS_Store
 Thumbs.db

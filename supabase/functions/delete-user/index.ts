@@ -41,7 +41,6 @@ async function main(req: Request): Promise<Response> {
       Authorization: `Bearer ${supabaseServiceKey}`,
     }
 
-    // Try auth admin API first
     const dRes = await fetch(`${supabaseUrl}/auth/v1/admin/users/${user_id}`, {
       method: "DELETE",
       headers: { ...sk, "Content-Type": "application/json" },
@@ -49,7 +48,6 @@ async function main(req: Request): Promise<Response> {
 
     if (!dRes.ok && dRes.status !== 404) {
       const body = await dRes.text()
-      // FK violation — use RPC that cleans FK refs + deletes auth+public user atomically
       if (body.includes("23503") || body.includes("foreign key")) {
         const rpc = await fetch(`${supabaseUrl}/rest/v1/rpc/delete_auth_user`, {
           method: "POST",
@@ -60,12 +58,10 @@ async function main(req: Request): Promise<Response> {
           const t = await rpc.text()
           return json({ error: `RPC delete failed: ${t}` }, rpc.status)
         }
-        // RPC already deleted public.users — skip separate delete
       } else {
         return json({ error: `Auth API ${dRes.status}: ${body}` }, dRes.status)
       }
     } else {
-      // Auth user deleted (or not found) — now delete public.users
       await fetch(`${supabaseUrl}/rest/v1/users?id=eq.${user_id}`, {
         method: "DELETE",
         headers: sk,
