@@ -51,5 +51,6 @@ Thumbs.db
 
 # Local server (WhatsApp + Email relay, packaged as exe)
 /server/
+/server/*.zip
 server.exe
 inspiration.html

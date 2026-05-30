@@ -4,7 +4,7 @@ window.APP_CONFIG = {
 
   // Fallback defaults — real values from Settings table override these at runtime.
   WA_BRIDGE_URL:         'http://localhost:3001',
-  SERVER_DOWNLOAD_URL:   'https://drive.google.com/uc?export=download&confirm=t&id=1aMNCvaDMc29aLc0UsfquBFPeVGCVfkDX',
+  SERVER_DOWNLOAD_URL:   'https://drive.google.com/uc?export=download&confirm=t&id=1eJq9IGWLIavrpbHG6rQCRubfJZ_6YwSQ',
   APPS_SCRIPT_URL:       'https://script.google.com/macros/s/AKfycby0QMUhOBk0hwYed1dmTIEPPNwdyy-MCM9DD3RlkkLPtdqJMdZbLqKFzFI2zeBzixEPeQ/exec',
   APPS_SCRIPT_TOKEN:     'SR_PLATFORM_2026_SECRET',
   DRIVE_SR_FOLDER_ID:    '1ZhC-rDMoPRnKkK3OVDT3_eC_A5hBSahV',

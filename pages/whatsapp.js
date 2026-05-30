@@ -134,7 +134,7 @@ export default {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Download Server
           </a>` : `<div style="font-size:.75rem;color:var(--text-3)">Download link not configured. Set SERVER_DOWNLOAD_URL in config.js</div>`}
-          <div style="font-size:.68rem;color:var(--text-3);margin-top:10px">60 MB · Standalone · No install needed</div>
+          <div style="font-size:.68rem;color:var(--text-3);margin-top:10px">Download · Extract · Run once · Auto-starts with Windows</div>
         </div>`}`
     }
 
