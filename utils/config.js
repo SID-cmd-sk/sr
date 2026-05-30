@@ -3,7 +3,7 @@ import { getSupabase, withTimeout } from '../services/supabase.js'
 export const CFG = {
   supabaseUrl: null, supabaseAnon: null,
   appsScriptUrl: null, appsScriptToken: null,
-  waBridgeUrl: null,
+  waBridgeUrl: null, serverDownloadUrl: null,
   smtpHost: 'smtpout.secureserver.net', smtpPort: 465,
   srFolderId: null, activitiesFolderId: null,
   srSpreadsheetId: null, srSheetName: 'SR Register', activitySheetName: 'Activity Log',
@@ -18,6 +18,7 @@ export async function initializeConfig() {
     CFG.appsScriptUrl = c.APPS_SCRIPT_URL || null
     CFG.appsScriptToken = c.APPS_SCRIPT_TOKEN || null
     CFG.waBridgeUrl = c.WA_BRIDGE_URL || null
+    CFG.serverDownloadUrl = c.SERVER_DOWNLOAD_URL || null
     CFG.srFolderId = c.DRIVE_SR_FOLDER_ID || null
     CFG.activitiesFolderId = c.DRIVE_ACTIVITIES_FOLDER_ID || null
     CFG.srSpreadsheetId = c.DRIVE_SPREADSHEET_ID || null

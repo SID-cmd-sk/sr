@@ -123,9 +123,18 @@ export default {
             </div>` : '<div style="font-size:.78rem;color:var(--text-3)">No group selected — EOD report will not be sent.</div>'}
           </div>
         </div>
-        ` : `<div class="alert alert-info" style="margin-top:14px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01" stroke-linecap="round"/></svg>
-          <div>Start the WhatsApp bridge service first: <code style="font-family:var(--mono);background:rgba(0,0,0,.3);padding:2px 6px;border-radius:3px">cd wa-service && node bridge.js</code></div>
+        ` : `<div class="card" style="margin-top:14px;padding:24px;text-align:center;border:1px dashed var(--border)">
+          <div style="font-size:2rem;margin-bottom:8px;opacity:.3">⚡</div>
+          <div style="font-weight:600;font-size:.9rem;margin-bottom:4px">Local Server Not Running</div>
+          <div style="font-size:.78rem;color:var(--text-2);margin-bottom:14px;line-height:1.5">
+            The SR server handles WhatsApp messaging and email relay.<br/>
+            Download and run it once — it will auto-start with Windows.
+          </div>
+          ${CFG.serverDownloadUrl ? `<a href="${escHtml(CFG.serverDownloadUrl)}" target="_blank" class="btn btn-primary" style="display:inline-flex;align-items:center;gap:6px">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Download Server
+          </a>` : `<div style="font-size:.75rem;color:var(--text-3)">Download link not configured. Set SERVER_DOWNLOAD_URL in config.js</div>`}
+          <div style="font-size:.68rem;color:var(--text-3);margin-top:10px">60 MB · Standalone · No install needed</div>
         </div>`}`
     }
 
