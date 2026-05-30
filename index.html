@@ -4,5 +4,13 @@
 <meta http-equiv="refresh" content="0; url=login.html"/>
 <title>SR Platform</title>
 </head><body>
-<script>window.location.href='login.html'</script>
+<script>
+;(function() {
+  document.addEventListener('contextmenu', e => e.preventDefault())
+  document.addEventListener('keydown', e => {
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) || (e.ctrlKey && e.key === 'U')) e.preventDefault()
+  })
+})()
+window.location.href='login.html'
+</script>
 </body></html>

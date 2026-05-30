@@ -24,6 +24,12 @@ p { color:#8B95B0; font-size:.8rem; margin:0 0 20px; line-height:1.6 }
   <p>Please wait while we restore your session</p>
 </div>
 <script>
+;(function() {
+  document.addEventListener('contextmenu', e => e.preventDefault())
+  document.addEventListener('keydown', e => {
+    if (e.key === 'F12' || (e.ctrlKey && e.shiftKey && ['I','J','C'].includes(e.key)) || (e.ctrlKey && e.key === 'U')) e.preventDefault()
+  })
+})()
 ;(async function() {
   const fullPath = window.location.pathname + window.location.search
   const basePath = (window.location.pathname.match(/(.*?)\/app(\.html|\/)/)?.[1]) || ''
