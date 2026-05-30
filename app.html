@@ -7,13 +7,13 @@
 <link rel="icon" href="data:,"/>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@200;300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@200;300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *,*::before,*::after { box-sizing:border-box; margin:0; padding:0 }
 html { font-size:14px; -webkit-text-size-adjust:100% }
-:root {
+:root,[data-theme="dark"] {
   --bg: #070B14; --bg-surface: #0A0F1C; --bg-elevated: #0F1623;
   --bg-card: #131929; --bg-hover: #1A2238; --bg-active: #1E2940;
   --border: rgba(255,255,255,0.05); --border-md: rgba(255,255,255,0.08); --border-lg: rgba(255,255,255,0.12);
@@ -26,8 +26,26 @@ html { font-size:14px; -webkit-text-size-adjust:100% }
   --red: #EF4444; --red-dim: rgba(239,68,68,0.1);
   --orange: #F97316; --purple: #8B5CF6; --purple-dim: rgba(139,92,246,0.1);
   --font: 'Inter', system-ui, sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
+  --font-display: 'Sora', sans-serif;
   --mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+[data-theme="light"] {
+  --bg: #e8ecf1; --bg-surface: #dee3ea; --bg-elevated: #d5dbe5;
+  --bg-card: #f0f3f8; --bg-hover: #e2e7ef; --bg-active: #d9dfe9;
+  --border: rgba(0,0,0,0.06); --border-md: rgba(0,0,0,0.10); --border-lg: rgba(0,0,0,0.14);
+  --text-1: #1a202c; --text-2: #4a5568; --text-3: #a0aec0; --text-inv: #f0f4ff;
+  --accent: #6366f1; --accent-dim: rgba(99,102,241,0.08); --accent-glow: rgba(99,102,241,0.15);
+  --accent-h: #4f46e5; --accent-lg: #818cf8;
+  --teal: #0d9488; --teal-dim: rgba(13,148,136,0.08);
+  --green: #059669; --green-dim: rgba(5,150,105,0.1);
+  --yellow: #d97706; --yellow-dim: rgba(217,119,6,0.1);
+  --red: #dc2626; --red-dim: rgba(220,38,38,0.1);
+  --orange: #ea580c; --purple: #7c3aed; --purple-dim: rgba(124,58,237,0.1);
+  --font: 'Inter', system-ui, sans-serif;
+  --font-display: 'Sora', sans-serif;
+  --mono: 'JetBrains Mono', 'Courier New', monospace;
+}
+:root {
   --weight-light: 200;
   --weight-book: 400;
   --weight-medium: 500;
@@ -141,6 +159,8 @@ body::before {
 .sidebar-link:hover svg { transform:scale(1.15) rotate(3deg) }
 .sidebar-footer { padding:10px 8px 14px; border-top:1px solid var(--border); flex-shrink:0 }
 .sidebar-user-info { padding:8px 10px 6px; font-size:.78rem; color:var(--text-2); font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+[data-theme="dark"] .theme-icon-light { display:none }
+[data-theme="light"] .theme-icon-dark { display:none }
 
 .app-main { flex:1; display:flex; flex-direction:column; overflow:hidden }
 .app-header {
@@ -410,21 +430,59 @@ body::before {
 
 .section-divider { height:1px; background:var(--border); margin:16px 0 }
 
-@media (max-width:768px) {
+.hamburger { display:none; flex-shrink:0; width:36px; height:36px; border:none; background:var(--bg-hover); border-radius:var(--r); cursor:pointer; flex-direction:column; align-items:center; justify-content:center; gap:4px; margin-right:10px; transition:background var(--t) ease }
+.hamburger:hover { background:var(--border) }
+.hamburger-line { display:block; width:16px; height:2px; background:var(--text-2); border-radius:2px; transition:all .2s ease }
+.hamburger.active .hamburger-line:nth-child(1) { transform:translateY(6px) rotate(45deg) }
+.hamburger.active .hamburger-line:nth-child(2) { opacity:0; transform:scaleX(0) }
+.hamburger.active .hamburger-line:nth-child(3) { transform:translateY(-6px) rotate(-45deg) }
+.sidebar-overlay { display:none; position:fixed; inset:0; z-index:99; background:rgba(0,0,0,.5); opacity:0; transition:opacity .25s ease }
+.sidebar-overlay.open { opacity:1 }
+@media (max-width:900px) {
   :root { --sidebar-w:200px }
+  .hamburger { display:flex }
+  .app-sidebar { position:fixed; top:0; left:0; bottom:0; z-index:100; transform:translateX(-100%); transition:transform .3s cubic-bezier(.16,1,.3,1) }
+  .app-sidebar.open { transform:translateX(0) }
+  .sidebar-overlay { display:block }
+}
+@media (max-width:768px) {
   .grid-2,.grid-3 { grid-template-columns:1fr }
   .form-row,.form-row-3 { grid-template-columns:1fr }
   .page-header { flex-direction:column; align-items:stretch }
   .page-header-actions { flex-wrap:wrap }
 }
 @media (max-width:600px) {
-  .app-sidebar { display:none }
   .page-content { padding:16px }
-  .app-header { padding:0 16px }
+  .app-header { padding:0 12px; gap:6px }
+  .breadcrumb { font-size:.78rem; gap:4px }
+  .header-right { gap:8px; flex-wrap:wrap }
+  .header-status { font-size:.72rem; gap:4px }
+  .table-wrap { overflow-x:auto; -webkit-overflow-scrolling:touch }
+  .table-wrap table { min-width:600px }
+  .stats-grid { grid-template-columns:repeat(2,1fr); gap:10px }
+  .modal-content { margin:0 10px; width:auto; max-height:90dvh; padding:20px }
+  .toast { left:10px; right:10px; max-width:none; bottom:16px }
+  .page-content { padding:12px }
+  .card { padding:16px }
+  h1.page-title { font-size:1rem }
+  .btn { font-size:.78rem; padding:7px 14px }
+  .input,.select { font-size:.78rem; padding:8px 10px }
+  .sidebar-footer { padding-bottom:max(14px,env(safe-area-inset-bottom,14px)) }
+}
+@media (max-width:420px) {
+  .stats-grid { grid-template-columns:1fr }
+  .grid-2,.grid-3 { grid-template-columns:1fr }
+  .modal-content { padding:16px }
+  h1.page-title { font-size:.9rem }
 }
 @media (prefers-reduced-motion:reduce) {
   *,*::before,*::after { animation-duration:.01ms!important; animation-delay:0ms!important; transition-duration:.01ms!important }
 }
+[data-theme="light"] body::before { opacity:.2 }
+[data-theme="light"] #auth-screen { background:radial-gradient(ellipse at 20% 50%, #d6dce8 0%, #e8ecf1 100%) }
+[data-theme="light"] #auth-screen::before { animation:none; background:radial-gradient(circle at 30% 60%, rgba(99,102,241,.08) 0%, transparent 55%),radial-gradient(circle at 70% 30%, rgba(13,148,136,.05) 0%, transparent 45%) }
+[data-theme="light"] #auth-screen::after { background-image:linear-gradient(rgba(0,0,0,0.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.025) 1px,transparent 1px) }
+[data-theme="light"] .app-shell::before { opacity:0 }
 </style>
 </head>
 <body>
@@ -530,15 +588,26 @@ body::before {
     <div class="sidebar-footer">
       <div class="sidebar-user-info" id="sidebar-user"></div>
       <div style="padding:4px 10px 2px;font-size:.65rem;color:var(--text-3);line-height:1.5">&copy; Sidharth &middot; <a href="#" onclick="showPrivacyPolicy();return false" style="color:var(--text-3);text-decoration:underline">Privacy</a></div>
+      <button class="sidebar-link" id="theme-toggle" onclick="toggleTheme()" title="Toggle theme">
+        <svg class="theme-icon-dark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <svg class="theme-icon-light" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <span id="theme-label">Dark</span>
+      </button>
       <button class="sidebar-link" onclick="window.doLogout()">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
         Sign Out
       </button>
     </div>
   </aside>
+  <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()" aria-hidden="true"></div>
 
   <main class="app-main">
     <header class="app-header">
+      <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Toggle navigation menu">
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+        <span class="hamburger-line"></span>
+      </button>
       <div class="breadcrumb">
         <span class="breadcrumb-root">SR Platform</span>
         <span class="breadcrumb-sep">/</span>
@@ -594,6 +663,41 @@ window.appState = appState
 window.auditLog = auditLog
 window.smtpSend = smtpSend
 window.createDriveFolder = createDriveFolder
+
+const savedTheme = localStorage.getItem('sr-theme') || 'dark'
+document.documentElement.setAttribute('data-theme', savedTheme)
+window.toggleTheme = function() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark'
+  const next = cur === 'dark' ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-theme', next)
+  localStorage.setItem('sr-theme', next)
+  document.getElementById('theme-label').textContent = next === 'dark' ? 'Dark' : 'Light'
+}
+window.toggleSidebar = function() {
+  const sidebar = document.querySelector('.app-sidebar')
+  const overlay = document.getElementById('sidebar-overlay')
+  const btn = document.getElementById('hamburger-btn')
+  const isOpen = sidebar.classList.toggle('open')
+  overlay.classList.toggle('open', isOpen)
+  btn.classList.toggle('active', isOpen)
+  document.body.style.overflow = isOpen ? 'hidden' : ''
+}
+document.addEventListener('click', function(e) {
+  if (window.innerWidth > 900) return
+  const sidebar = document.querySelector('.app-sidebar')
+  if (sidebar && sidebar.classList.contains('open') && !sidebar.contains(e.target) && !document.getElementById('hamburger-btn').contains(e.target)) {
+    window.toggleSidebar()
+  }
+})
+document.querySelector('.sidebar-nav')?.addEventListener('click', function(e) {
+  if (window.innerWidth <= 900 && e.target.closest('.sidebar-link')) {
+    setTimeout(window.toggleSidebar, 200)
+  }
+})
+setTimeout(() => {
+  const lbl = document.getElementById('theme-label')
+  if (lbl) lbl.textContent = savedTheme === 'dark' ? 'Dark' : 'Light'
+}, 0)
 
 let unsubscribeAuth = null
 

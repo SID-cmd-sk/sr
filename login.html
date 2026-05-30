@@ -5,29 +5,32 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <title>SR Platform — Sign In</title>
 <link rel="icon" href="data:,"/>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700;800&family=Inter:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet"/>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <style>
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0 }
-:root {
-  --bg:      #070B14;
-  --card:    #0F1623;
-  --border:  rgba(255,255,255,0.07);
-  --accent:  #3B82F6;
-  --teal:    #14B8A6;
-  --text-1:  #F0F4FF;
-  --text-2:  #8B95B0;
-  --text-3:  #4A5268;
-  --red:     #EF4444;
-  --green:   #10B981;
-  --font:    'Inter', system-ui, sans-serif;
-  --font-display: 'Space Grotesk', sans-serif;
-  --r:       8px;
-  --r-lg:    14px;
-  --r-xl:    18px;
-  --r-2xl:   24px;
-  --ease:    cubic-bezier(0.16, 1, 0.3, 1);
+:root,[data-theme="dark"] {
+  --bg: #070B14; --card: #0F1623;
+  --border: rgba(255,255,255,0.07);
+  --accent: #3B82F6; --accent-h: #2563EB;
+  --teal: #14B8A6; --text-1: #F0F4FF; --text-2: #8B95B0; --text-3: #4A5268;
+  --red: #EF4444; --green: #10B981;
+  --font: 'Inter', system-ui, sans-serif;
+  --font-display: 'Sora', sans-serif;
+  --r: 8px; --r-lg: 14px; --r-xl: 18px; --r-2xl: 24px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
+}
+[data-theme="light"] {
+  --bg: #e8ecf1; --card: #f0f3f8;
+  --border: rgba(0,0,0,0.08);
+  --accent: #6366f1; --accent-h: #4f46e5;
+  --teal: #0d9488; --text-1: #1a202c; --text-2: #4a5568; --text-3: #a0aec0;
+  --red: #dc2626; --green: #059669;
+  --font: 'Inter', system-ui, sans-serif;
+  --font-display: 'Sora', sans-serif;
+  --r: 8px; --r-lg: 14px; --r-xl: 18px; --r-2xl: 24px;
+  --ease: cubic-bezier(0.16, 1, 0.3, 1);
 }
 html { font-size: 14px }
 body {
@@ -232,16 +235,42 @@ body::after {
 .input-wrap:focus-within .input-icon { color: var(--accent) }
 .input-wrap .input { padding-left: 38px }
 
+[data-theme="light"] body::before {
+  background: radial-gradient(ellipse 70% 60% at 15% 25%, rgba(99,102,241,0.06) 0%, transparent 65%),
+              radial-gradient(ellipse 50% 70% at 85% 75%, rgba(13,148,136,0.04) 0%, transparent 65%);
+}
+[data-theme="light"] body::after { background-image:linear-gradient(rgba(0,0,0,0.02) 1px,transparent 1px),linear-gradient(90deg,rgba(0,0,0,0.02) 1px,transparent 1px) }
+[data-theme="light"] .orb-1 { background: rgba(99,102,241,0.06) }
+[data-theme="light"] .orb-2 { background: rgba(13,148,136,0.05) }
+[data-theme="light"] .card { box-shadow:0 0 0 1px rgba(0,0,0,0.03) inset,0 24px 64px rgba(0,0,0,0.12),0 4px 16px rgba(0,0,0,0.06) }
+[data-theme="light"] .card::before { background:linear-gradient(90deg,transparent,rgba(0,0,0,0.04),transparent) }
+[data-theme="light"] .brand-name { background:linear-gradient(135deg,#1a202c 30%,#6366f1);-webkit-background-clip:text;background-clip:text }
+[data-theme="light"] .input { background:rgba(0,0,0,0.03);border-color:rgba(0,0,0,0.08) }
+[data-theme="light"] .input:focus { border-color:var(--accent);box-shadow:0 0 0 3px rgba(99,102,241,0.15);background:rgba(99,102,241,0.04) }
+[data-theme="light"] .btn { background:linear-gradient(135deg,#6366f1,#4f46e5);box-shadow:0 4px 16px rgba(99,102,241,0.3),0 2px 4px rgba(0,0,0,0.1) }
+[data-theme="light"] .btn:hover:not(:disabled) { background:linear-gradient(135deg,#4f46e5,#4338ca);box-shadow:0 6px 24px rgba(99,102,241,0.4),0 2px 4px rgba(0,0,0,0.1) }
+[data-theme="light"] .version-badge { background:rgba(99,102,241,0.08);border-color:rgba(99,102,241,0.15);color:#6366f1 }
+[data-theme="light"] .brand-logo { background:linear-gradient(135deg,#6366f1,#0d9488);box-shadow:0 0 0 1px rgba(99,102,241,0.3),0 0 40px rgba(99,102,241,0.2),0 16px 32px rgba(0,0,0,0.15) }
+[data-theme="light"] .divider-line { background:rgba(0,0,0,0.06) }
+@media (max-width:600px) {
+  .card { padding:28px 20px; max-width:94vw }
+  .input { font-size:.78rem; padding:10px 12px }
+  .btn { font-size:.82rem; padding:10px 20px }
+  h2 { font-size:1rem }
+  .brand-logo { width:44px; height:44px; font-size:1.1rem }
+  .orb-1,.orb-2 { display:none }
+  body { padding:12px }
+  .footer { font-size:.65rem }
+}
+@media (max-width:400px) {
+  .card { padding:22px 14px; max-width:100vw; border-radius:16px }
+  h2 { font-size:.9rem }
+  .input { font-size:.75rem }
+}
 .err {
-  background: rgba(239,68,68,0.08);
-  border: 1px solid rgba(239,68,68,0.2);
-  color: var(--red);
-  border-radius: var(--r);
-  padding: 10px 13px;
-  font-size: 0.8rem;
-  margin-bottom: 16px;
-  display: none;
-  line-height: 1.5;
+  background:rgba(239,68,68,.12); border:1px solid rgba(239,68,68,.25);
+  color:var(--red); padding:8px 12px; border-radius:var(--r);
+  font-size:.75rem; display:none; margin-top:8px;
 }
 
 .btn {
@@ -321,6 +350,8 @@ body::after {
   letter-spacing: 0.04em;
   margin-top: 8px;
 }
+[data-theme="dark"] .theme-icon-light { display:none }
+[data-theme="light"] .theme-icon-dark { display:none }
 .version-dot {
   width: 5px; height: 5px;
   border-radius: 50%;
@@ -382,9 +413,16 @@ body::after {
   <div class="footer">
     Internal use only · Contact Admin for access
     <br/>
-    <div class="version-badge">
+    <div class="version-badge" style="display:inline-flex">
       <span class="version-dot"></span>
       SR Platform v2.0
+    </div>
+    <div style="margin-top:10px">
+      <button onclick="toggleTheme()" style="background:none;border:none;color:var(--text-3);font-size:0.68rem;cursor:pointer;font-family:inherit;display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:20px;transition:all .2s ease">
+        <svg class="theme-icon-dark" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+        <svg class="theme-icon-light" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+        <span id="login-theme-label">Dark</span>
+      </button>
     </div>
   </div>
 </div>
@@ -505,6 +543,17 @@ document.head.appendChild(style)
     }
   })
 })()
+
+const savedTheme = localStorage.getItem('sr-theme') || 'dark'
+document.documentElement.setAttribute('data-theme', savedTheme)
+setTimeout(() => { const l = document.getElementById('login-theme-label'); if(l) l.textContent = savedTheme === 'dark' ? 'Dark' : 'Light' }, 0)
+window.toggleTheme = function() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark'
+  const next = cur === 'dark' ? 'light' : 'dark'
+  document.documentElement.setAttribute('data-theme', next)
+  localStorage.setItem('sr-theme', next)
+  const l = document.getElementById('login-theme-label'); if(l) l.textContent = next === 'dark' ? 'Dark' : 'Light'
+}
 </script>
 </body>
 </html>
