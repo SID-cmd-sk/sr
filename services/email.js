@@ -3,29 +3,19 @@ import { appState } from './app-state.js'
 import { auditLog } from './audit.js'
 import { CFG } from '../utils/config.js'
 
-function edgeUrl(name) {
-  return `${CFG.supabaseUrl}/functions/v1/${name}`
-}
-
-async function authHeaders() {
-  const sb = getSupabase()
-  const { data } = await sb?.auth?.getSession() || { data: null }
-  const token = data?.session?.access_token || ''
-  return { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
-}
-
 export async function smtpSend({ host, port, username, password, to, from: fromAddr, subject, body }) {
+  const url = CFG.waBridgeUrl || 'http://localhost:3001'
   const ac = new AbortController()
   const tid = setTimeout(() => ac.abort(), 15000)
   try {
-    const res = await fetch(edgeUrl('send-email'), {
+    const res = await fetch(`${url}/send-email`, {
       method: 'POST',
-      headers: await authHeaders(),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ host, port, username, password, to, from: fromAddr || username, subject, body }),
       signal: ac.signal,
     })
     const json = await res.json().catch(() => ({}))
-    if (!res.ok || json.error) throw new Error(json.error || `Email error ${res.status}`)
+    if (!res.ok || !json.ok) throw new Error(json.error || `Email error ${res.status}`)
     return 'OK'
   } finally {
     clearTimeout(tid)

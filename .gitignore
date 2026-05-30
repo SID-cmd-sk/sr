@@ -48,3 +48,7 @@ __pycache__/
 .DS_Store
 Thumbs.db
 /.opencode
+
+# Local server (WhatsApp + Email relay, packaged as exe)
+/server/
+server.exe
